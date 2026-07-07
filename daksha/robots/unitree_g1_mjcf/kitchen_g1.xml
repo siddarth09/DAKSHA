@@ -1,0 +1,5 @@
+
+<mujoco model="daksha_kitchen_g1">
+  <include file="../../scenes/robocasa_kitchen.xml"/>
+  <include file="g1_with_hands_nokf.xml"/>
+</mujoco>
