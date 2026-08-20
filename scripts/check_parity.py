@@ -140,6 +140,52 @@ def check_kinematics(n_samples: int = 500, tol_mm: float = 0.5) -> bool:
     return ok
 
 
+def check_eef_frame(n_samples: int = 300, tol_mm: float = 0.5) -> bool:
+    """The point the IK servos must be the point the MJCF calls the end effector.
+
+    RUNS FOR EVERY ROBOT, unlike check_kinematics(). Joint-level FK agreeing does not mean the
+    TOOL point agrees: the recorded action is the eef site's pose, and `eef_offset` shifts it off
+    the gripper body in both descriptions independently. Getting that composition wrong is silent
+    -- IK still converges, cleanly, onto the wrong point, so the arm reaches confidently past the
+    object and it reads as a bad grasp pose or a calibration problem.
+
+    Already caught once: pinocchio's `Frame` places its `placement` relative to the parent JOINT,
+    not the parent FRAME, so the natural-looking SE3(I, offset) anchored the tool 119.9 mm (reBot)
+    / 107.0 mm (Panda) from the real gripper.
+    """
+    import numpy as np
+    sys.path.insert(0, str(L.PKG.parent / "zero_control"))
+    from zero_control.ik import ArmIK
+
+    r = L.ROBOTS[KEY]
+    m = mujoco.MjModel.from_xml_path(str(MJCF))
+    d = mujoco.MjData(m)
+    off = np.array(r["eef_offset"], dtype=float)
+    worst = 0.0
+    for side in L.SIDES:
+        jn = [L.prefixed(side, j) for j in r["arm_joints"]]
+        ik = ArmIK(str(URDF), r["urdf_eef_frame"].format(side=side), jn, r["eef_offset"])
+        bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, L.prefixed(side, r["eef_body"]))
+        qadr = [m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in jn]
+        jr = np.array([m.jnt_range[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)]
+                       for n in jn])
+        rng = np.random.default_rng(0)
+        for _ in range(n_samples):
+            q = rng.uniform(jr[:, 0], jr[:, 1])
+            d.qpos[:] = 0
+            for i, a in enumerate(qadr):
+                d.qpos[a] = q[i]
+            mujoco.mj_forward(m, d)
+            p_mj = d.xpos[bid] + d.xmat[bid].reshape(3, 3) @ off
+            qp = np.zeros(ik.model.nq)
+            qp[ik.qidx] = q
+            worst = max(worst, float(np.linalg.norm(p_mj - ik.fk(qp).translation)))
+    ok = worst * 1000 <= tol_mm
+    print(f"{'OK  ' if ok else 'FAIL':4}  {'IK tool point vs MJCF':28} "
+          f"max {worst * 1000:.4f} mm over {n_samples * len(L.SIDES)} configs (tol {tol_mm})")
+    return ok
+
+
 def report_superset(name: str, got: set[str], want: set[str]) -> bool:
     """MJCF may legitimately hold MORE joints than ros2_control commands.
 
@@ -185,6 +231,7 @@ def main() -> int:
     checks.append(report("MJCF cameras", mjcf_cameras(), set(L.all_cameras())))
     checks.append(report("URDF camera <sensor>s", urdf_camera_sensors(), set(L.all_cameras())))
     checks.append(check_kinematics())
+    checks.append(check_eef_frame())
     ctrl = controller_joints()
     if ctrl:
         # Controllers legitimately cover a SUBSET (arm controller + gripper controller split),

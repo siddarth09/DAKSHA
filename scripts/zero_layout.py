@@ -175,16 +175,20 @@ ROBOTS = {
         # Per-side, searched (scripts/findhome.py <robot> <side>). NOT mirrored from one pose:
         # the correct mirror is robot-specific and copying left->right aimed the arm 0.43 m away.
         "home": {
-            "left": (-0.352, 1.314, 0.706, 0.067, -1.185, 2.366),
-            "right": (0.422, 1.269, 0.446, 0.649, 1.006, -3.073),
+            "left": (0.111, 0.966, 0.322, 0.543, 0.239, -2.922),
+            "right": (0.299, 1.331, 0.463, 0.664, 0.961, -2.716),
         },
-        "grip_open": (0.0, 0.0),
+        # (closed, open) joint value, shared by both fingers. ONE pair rather than one value
+        # per joint: Panda commands only finger_joint1 (the other follows an <equality>), so a
+        # per-joint tuple silently mismatched the joint count.
+        "grip_range": (0.0, 0.05),   # reBot fingers are SLIDE joints, range [0, 0.05]
         # menagerie names each actuator after its joint, so the ros2_control parity check can
         # compare the two sets directly.
         "actuators_match_joints": True,
         # ── ros2_control / URDF side (source embodiment: needs teleop) ──
         "urdf": SEEED_URDF,
         "urdf_root": "base_link",
+        "urdf_eef_frame": "{side}_gripper_end",
         "urdf_skip_links": (),
         "mesh_src": SEEED_MESHES,
         "mesh_glob": ("*.STL",),
@@ -224,7 +228,7 @@ ROBOTS = {
             "left": (0.207, 0.486, -0.147, -1.985, -0.542, 2.558, -0.688),
             "right": (0.277, 0.612, -0.336, -1.788, 0.422, 2.137, 0.005),
         },
-        "grip_open": (0.04, 0.04),
+        "grip_range": (0.0, 0.04),   # Panda finger_joint1 range [0, 0.04]
         # ⚠️ Panda actuators are `actuator1..8`, NOT joint names, and there are 8 for 9 joints
         # (one actuator drives both fingers, with an <equality> coupling them -- same topology as
         # the reBot's gripper). Any name-based joint<->actuator check must skip this robot.
@@ -237,6 +241,7 @@ ROBOTS = {
         # dropped -- our generated file supplies a single shared `world` root for both arms, and
         # two copies of `world` would make the tree a forest.
         "urdf_root": "link0",
+        "urdf_eef_frame": "{side}_hand",
         "urdf_skip_links": ("world",),
         "mesh_src": ROOT / "robots" / "franka_emika_panda" / "assets",
         "mesh_glob": ("*.obj", "*.stl"),

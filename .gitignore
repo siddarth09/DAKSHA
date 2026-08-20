@@ -1,0 +1,60 @@
+# ─── GENERATED ASSETS ──────────────────────────────────────────────────────────────────
+# zero_description/{urdf,mjcf,meshes} are all GENERATED (by scripts/gen_urdf.py and
+# gen_scene.py) but are TRACKED on purpose: CMakeLists.txt does
+#     install(DIRECTORY urdf mjcf meshes DESTINATION share/${PROJECT_NAME})
+# so a missing directory is a hard CMake error and a fresh clone cannot colcon build at all.
+# RViz also resolves package://zero_description/meshes/... at runtime.
+# The cost is ~97 MB duplicated from robots/ (which is the source of truth and also tracked);
+# the benefit is a repo that builds and runs straight from a clone. Worth it.
+
+# Renders from gen_scene.py / shot2.py / camshot.py. Not needed to build or run, and they churn
+# on every geometry tweak, which makes diffs useless.
+scenes/*.png
+
+# ─── COLCON / ROS 2 ───────────────────────────────────────────────────────────────────
+build/
+install/
+log/
+
+# ─── DATA: bags and datasets ──────────────────────────────────────────────────────────
+# Teleop bags carry 5 camera streams at 640x480 -- tens of GB per session. These belong on
+# disk or the HF hub, never in git.
+bags/
+rosbag2_*/
+*.mcap
+*.db3
+*.db3-shm
+*.db3-wal
+data/
+datasets/
+*.parquet
+
+# ─── MODELS / TRAINING ────────────────────────────────────────────────────────────────
+outputs/
+checkpoints/
+wandb/
+eval/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+
+# ─── PYTHON ───────────────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# ─── MUJOCO / TOOLING ─────────────────────────────────────────────────────────────────
+MUJOCO_LOG.TXT
+.mujoco_cache/
+
+# ─── EDITOR / OS ──────────────────────────────────────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*~
+.DS_Store

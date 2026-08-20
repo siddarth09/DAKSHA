@@ -5,7 +5,7 @@ key=sys.argv[1]
 m=mujoco.MjModel.from_xml_path(str(L.PKG/"mjcf"/f"zero_{key}.xml")); d=mujoco.MjData(m)
 r=L.ROBOTS[key]
 for side in L.SIDES:
-    for jb,q in zip(L.robot_all_joints(key), tuple(r["home"][side])+tuple(r["grip_open"])):
+    for jb,q in zip(L.robot_all_joints(key), tuple(r["home"][side]) + (r["grip_range"][1],)*len(r["gripper_joints"])):
         j=mujoco.mj_name2id(m,mujoco.mjtObj.mjOBJ_JOINT,f"{side}_{jb}")
         d.qpos[m.jnt_qposadr[j]]=q
 mujoco.mj_forward(m,d)

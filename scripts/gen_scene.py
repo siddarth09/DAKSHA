@@ -25,19 +25,68 @@ import zero_layout as L
 LEG_R = 0.03
 
 
+def rest_offset(path) -> float:
+    """Height of an object's TOP-BODY ORIGIN above the surface it rests on.
+
+    Compiles the robocasa object on its own and measures the lowest point of its COLLISION
+    geometry relative to its top body's frame, from `mesh_vert` -- the actual vertices. Never from
+    `geom_rbound`, which is a bounding-sphere radius and overestimates badly on a flat tray.
+
+    WHY THIS IS COMPUTED. The placement z used to be a hand-guessed constant (`TABLE_TOP_Z +
+    0.015`). Measured, that left the tray 12.9 mm in the air -- and the tray is WELDED to the
+    world, so unlike the free-jointed lemon it can never fall and settle. It just hangs there
+    forever, which is exactly what it looked like. A guessed offset is only ever right by luck;
+    each robocasa asset has its own origin convention.
+    """
+    child = mujoco.MjSpec.from_file(str(path))
+    for coll in (child.meshes, child.textures):
+        for asset in coll:
+            if asset.file and not asset.file.startswith("/"):
+                asset.file = str((path.parent / asset.file).resolve())
+    m = child.compile()
+    d = mujoco.MjData(m)
+    mujoco.mj_forward(m, d)
+    top_z = d.xpos[1][2]                       # body 1 = the child's top body (0 is world)
+    lo = np.inf
+    for g in range(m.ngeom):
+        if not (m.geom_contype[g] or m.geom_conaffinity[g]):
+            continue
+        if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH:
+            mid = m.geom_dataid[g]
+            V = m.mesh_vert[m.mesh_vertadr[mid]:
+                            m.mesh_vertadr[mid] + m.mesh_vertnum[mid]].reshape(-1, 3)
+            W = (d.geom_xmat[g].reshape(3, 3) @ V.T).T + d.geom_xpos[g]
+            lo = min(lo, float(W[:, 2].min()))
+        else:
+            lo = min(lo, float(d.geom_xpos[g][2] - m.geom_size[g][2]))
+    assert np.isfinite(lo), f"{path} has no collision geometry to rest on"
+    return top_z - lo
+
+
 def add_task(spec: mujoco.MjSpec) -> None:
     """Attach the robocasa pick object and place target -- identical for every embodiment.
 
     Attached with MjSpec.attach and prefixed, same as the arms, so their mesh/material/geom names
-    cannot collide with the robot's. The pick object gets a FREE JOINT (it must be liftable); the
-    tray is left welded to the world so it cannot be nudged out of position, which keeps the
-    place target fixed across episodes. Give the tray a freejoint later if sliding it becomes
-    part of the task.
+    cannot collide with the robot's.
+
+    BOTH GET A FREE JOINT. The pick object obviously must be liftable. The tray was initially
+    welded so the place target could not be nudged, but that buys determinism with physics: a
+    welded body is infinitely rigid, so brushing it gives an unphysical contact response and the
+    object bounces off a tray a real 2.8 kg one would have shifted. That response is part of what
+    transfers, and the two embodiments reach into the tray differently. Read the place target from
+    the tray's MEASURED pose -- it is already in the observation -- rather than bolting it down.
+    A free tray also settles instead of hanging in mid-air when its placement is off.
     """
+    # 0.5 mm of clearance rather than exact contact, so nothing starts the episode already
+    # interpenetrating the table and getting pushed out by the contact solver.
+    CLEARANCE = 0.0005
     for label, path, pos, free in (
         ("obj", L.PICK_OBJECT, L.PICK_POS, True),
-        ("plate", L.PLACE_TARGET, L.PLACE_POS, False),
+        ("plate", L.PLACE_TARGET, L.PLACE_POS, True),
     ):
+        # x,y come from the layout; z is MEASURED so the object rests ON the table. The z in
+        # PICK_POS/PLACE_POS stays the nominal aim point for the home-pose search.
+        pos = (pos[0], pos[1], L.TABLE_TOP_Z + rest_offset(path) + CLEARANCE)
         child = mujoco.MjSpec.from_file(str(path))
         # ⚠️ ABSOLUTISE the child's asset paths. A compiled model has ONE global meshdir, which we
         # point at the ROBOT's assets; the robocasa object's meshes are relative to its own
@@ -53,6 +102,22 @@ def add_task(spec: mujoco.MjSpec) -> None:
         # added to the child's TOP body BEFORE attaching -- after attach that body becomes a
         # worldbody child of ours. Adding it to `object` post-attach fails with
         # "free joint can only be used on top level".
+        # ⚠️ GEOM GROUPS: match the robots' convention or the scene renders wrong. MuJoCo's
+        # viewer shows groups 0/1/2 and hides 3+, and menagerie uses 2 for visual and 3 for
+        # collision so the collision hulls stay hidden. The robocasa objects instead ship their
+        # COLLISION meshes in group 0, which is visible -- so the grey convex hulls were drawn
+        # over the textured visual meshes, and the object looked like an untextured blob until
+        # you pressed `0` to hide the group (which also hid the table, since it lives there too).
+        # `*_reg_bbox` are robocasa's annotation boxes, not geometry; park them in 4 so they are
+        # hidden and do not clutter the collision view either.
+        for geom in child.geoms:
+            if geom.name.endswith("reg_bbox"):
+                geom.group = 4
+            elif geom.contype or geom.conaffinity:
+                geom.group = 3
+            else:
+                geom.group = 2
+
         top = child.worldbody.bodies[0]
         top.name = "root"
         top.pos = list(pos)          # position carried on the body, so the frame stays identity
@@ -88,6 +153,34 @@ def build(key: str) -> mujoco.MjSpec:
     spec = mujoco.MjSpec()
     spec.modelname = f"zero_{key}"
     spec.compiler.degree = False
+    # ⚠️ SCENE PHYSICS IS CANONICAL, NOT INHERITED PER ROBOT. MjSpec.attach does not bring the
+    # child's <option>, so a fresh MjSpec silently falls back to MuJoCo's defaults (Euler,
+    # pyramidal cone) -- which left Panda's kp=4500 joints oscillating hard enough to pin seven
+    # actuators at their force limits while holding a STATIONARY pose.
+    #
+    # But copying the settings from each ARM's source model is also wrong, and more subtly so:
+    # the reBot ships cone="elliptic" impratio="10" and Panda does not, so the SAME lemon wedge
+    # drifted 0.15 deg per 28 s in one scene and 5.65 deg in the other. The environment must be
+    # identical across embodiments or a contact-solver difference shows up as a transfer result,
+    # which is precisely the confound this project exists to measure. Pinned here, both scenes
+    # give 0.06 mm / 0.15 deg. Elliptic friction with a high impratio is also MuJoCo's own
+    # recommendation for grasping, and both source models ask for implicitfast anyway.
+    spec.option.integrator = mujoco.mjtIntegrator.mjINT_IMPLICITFAST
+    spec.option.cone = mujoco.mjtCone.mjCONE_ELLIPTIC
+    spec.option.impratio = 10.0
+    # Timestep stays the finest either arm was tuned for, rather than a number invented here.
+    spec.option.timestep = min(
+        mujoco.MjModel.from_xml_path(str(rb["mjcf"])).opt.timestep for rb in L.ROBOTS.values())
+
+    # MULTI-POINT CONVEX CONTACT. MuJoCo's convex-convex narrowphase returns a SINGLE contact
+    # point per geom pair, so a mesh object resting on the table is balanced on one point and
+    # rocks forever: the lemon wedge accumulated 24-58 deg of net rotation while sitting still,
+    # which looks like a mass/inertia or friction bug and is neither -- timestep, solver
+    # iterations, integrator and friction all made no difference (some made it worse), because
+    # nothing there adds the missing contact points. multiccd generates several, taking the
+    # wedge to 0.2 deg over 4 s and 2.8 deg over 30 s. It matters beyond cosmetics: object pose
+    # is part of the recorded observation, so a drifting object is label noise in every demo.
+    spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_MULTICCD
     # Absolute meshdir: the MJCF is written to zero_description/mjcf/ but the meshes live under
     # robots/<robot>/assets, and a relative path breaks the moment the cwd changes.
     spec.meshdir = str(r["mjcf"].parent / "assets")
@@ -133,8 +226,42 @@ def build(key: str) -> mujoco.MjSpec:
         # exclude array", because these models ship <contact><exclude> pairs and attaching
         # rewrites the child's element ids.
         arm = mujoco.MjSpec.from_file(str(r["mjcf"]))
+
+        # ⚠️ DROP THE ARM'S OWN LIGHTS. Both source models ship an overhead spot intended for
+        # viewing that arm ALONE. Attaching two arms brings two more lights on top of the two
+        # tuned here, and their diffuse is 0.7 against our 0.35, so total diffuse hit 2.1 and the
+        # `top` camera rendered a white frame. Lighting is a property of the scene, not of a
+        # component, and these frames are recorded observations -- a blown-out view is unusable
+        # training data, not just an ugly preview.
+        for light in list(arm.lights):
+            arm.delete(light)
+
+        # Marker sites must not render into the camera images. Sid's panda_ros2.xml carries a
+        # `panda_ee` site in group 0 (visible by default, solid red), which put a red ball in
+        # the middle of both wrist views -- straight into the recorded observations. Group 4 is
+        # hidden by default; a site's group affects rendering only, never its use as a frame.
+        for site in arm.sites:
+            site.group = 4
+
         frame = spec.worldbody.add_frame(pos=list(mounts[side]), quat=[1, 0, 0, 0])
         spec.attach(arm, prefix=f"{side}_", frame=frame)
+
+    # ⚠️ GRAVITY COMPENSATION, and it MUST be set here rather than on the compiled model.
+    # MuJoCo counts gravcomp bodies at compile time (`ngravcomp`) and skips the whole force path
+    # when that count is zero, so assigning `model.body_gravcomp` at runtime does nothing at all
+    # and reports no error -- it measured byte-identical to no compensation.
+    #
+    # WHY compensate: a position servo can only generate holding torque from standing error, so
+    # every joint sits gravity_torque/kp away from its command forever. That is the entire
+    # residual -- with gravity off, Panda's hold error is exactly 0.000000 rad. Left uncorrected
+    # it means the pose we RECORD as the action is not the pose the arm reaches, which is label
+    # noise in every demo and differs per embodiment, i.e. exactly the confound this project
+    # exists to measure. Compensating the arm bodies removes it. The manipulated object is NOT
+    # compensated, so grasping still has to hold real weight.
+    for side in L.SIDES:
+        for body in spec.bodies:
+            if body.name.startswith(f"{side}_"):
+                body.gravcomp = 1.0
 
     add_task(spec)
 
@@ -164,7 +291,7 @@ def main() -> None:
 
     joints = L.robot_all_joints(key)
     for side in L.SIDES:
-        pose = tuple(r["home"][side]) + tuple(r["grip_open"])
+        pose = tuple(r["home"][side]) + (r["grip_range"][1],) * len(r["gripper_joints"])
         for jb, q in zip(joints, pose):
             jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{side}_{jb}")
             assert jid >= 0, f"missing joint {side}_{jb}"
@@ -178,11 +305,35 @@ def main() -> None:
     key_ = spec.add_key(name="home")
     key_.qpos = d.qpos.copy().tolist()
     key_.ctrl = [0.0] * model.nu
+
+    # ⚠️ RESOLVE ACTUATORS BY TRANSMISSION TARGET, NEVER BY JOINT NAME. This used to be
+    # mj_name2id(mjOBJ_ACTUATOR, f"{side}_{jb}"), which finds an actuator only when it happens to
+    # share its joint's name. The reBot's do; Panda's are `actuator1..7` / `gripper_actuator`, so
+    # EVERY lookup returned -1, the `if aid >= 0` swallowed it, and Panda shipped a home keyframe
+    # whose ctrl was all zeros. The sim then drove every joint from the home qpos toward 0 the
+    # instant it loaded: four actuators pinned at their force limits, the fingers slammed through
+    # each other by 17 mm, and the arm could not track an EEF command to better than 40 mm. It
+    # reads as an IK or a controller fault -- the IK was in fact exact (0.0000 mm open-loop).
+    # `check_parity.py` resolves actuators the same way, and for the same reason.
+    act_of_joint: dict[int, int] = {}
+    for i in range(model.nu):
+        if model.actuator_trntype[i] == mujoco.mjtTrn.mjTRN_JOINT:
+            act_of_joint[int(model.actuator_trnid[i, 0])] = i
+
+    n_set = 0
     for side in L.SIDES:
-        for jb, q in zip(joints, tuple(r["home"][side]) + tuple(r["grip_open"])):
-            aid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_ACTUATOR, f"{side}_{jb}")
+        pose = tuple(r["home"][side]) + (r["grip_range"][1],) * len(r["gripper_joints"])
+        for jb, q in zip(joints, pose):
+            jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{side}_{jb}")
+            aid = act_of_joint.get(jid, -1)
             if aid >= 0:
                 key_.ctrl[aid] = q
+                n_set += 1
+    # A keyframe whose ctrl does not command the qpos it stores is a spring-loaded model, so
+    # assert every actuator got a value rather than trusting the loop.
+    assert n_set == model.nu, (
+        f"home keyframe set {n_set}/{model.nu} actuators -- an unset actuator holds 0.0 and "
+        f"will drive its joint away from the home pose on load")
 
     out = L.PKG / "mjcf" / f"zero_{key}.xml"
     out.parent.mkdir(parents=True, exist_ok=True)

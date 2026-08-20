@@ -1,0 +1,21 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>zero_control</name>
+  <version>0.0.1</version>
+  <description>
+    End-effector (SE(3)) control for ZERO. Converts the 20-dim cross-embodiment action
+    (per hand: pos3 + rot6d + grip1) into joint position commands via damped-least-squares IK,
+    for any robot in zero_layout.ROBOTS. One node for source and target embodiments, so a
+    control-code difference cannot be mistaken for a transfer result.
+  </description>
+  <maintainer email="dayasagar.s@northeastern.edu">Sid</maintainer>
+  <license>Apache-2.0</license>
+  <buildtool_depend>ament_python</buildtool_depend>
+  <exec_depend>rclpy</exec_depend>
+  <exec_depend>sensor_msgs</exec_depend>
+  <exec_depend>std_msgs</exec_depend>
+  <exec_depend>zero_description</exec_depend>
+  <exec_depend>python3-numpy</exec_depend>
+  <export><build_type>ament_python</build_type></export>
+</package>

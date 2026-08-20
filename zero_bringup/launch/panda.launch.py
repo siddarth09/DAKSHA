@@ -34,6 +34,7 @@ def generate_launch_description() -> LaunchDescription:
     bringup = FindPackageShare("zero_bringup")
     urdf = PathJoinSubstitution([desc, "urdf", "zero_panda.urdf"])
     controllers = PathJoinSubstitution([bringup, "config", "panda_controllers.yaml"])
+    control_params = PathJoinSubstitution([bringup, "config", "panda_control.yaml"])
 
     rsp = Node(
         package="robot_state_publisher",
@@ -53,7 +54,13 @@ def generate_launch_description() -> LaunchDescription:
              arguments=[n, "--controller-manager", "/controller_manager"], output="screen")
         for n in CONTROLLERS
     ]
+    # SE(3) -> joint IK. Starts alongside the spawners; it holds the measured configuration until
+    # a /zero/eef_target arrives, so ordering against the controllers does not matter.
+    eef = Node(
+        package="zero_control", executable="eef_control", output="screen",
+        parameters=[control_params],
+    )
     return LaunchDescription([
         rsp, ctrl,
-        RegisterEventHandler(OnProcessStart(target_action=ctrl, on_start=spawners)),
+        RegisterEventHandler(OnProcessStart(target_action=ctrl, on_start=spawners + [eef])),
     ])

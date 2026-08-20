@@ -24,6 +24,13 @@ J1_CLAMP = 0.45
 STANDOFF = 0.20
 N = 400_000
 
+# Keep every joint this far (rad) from both of its limits. A home pose is a STARTING pose: the
+# arm has to be able to move away from it in every direction. The first version of this search
+# scored only aim and standoff, and returned a reBot left pose sitting 0.013 rad from joint3's
+# limit -- from which reaching the lemon 12 cm below simply failed, because a joint already
+# against its stop cannot contribute. Costs nothing: the search has 400k samples to spend.
+LIMIT_MARGIN = 0.15
+
 
 def main() -> None:
     key = sys.argv[1] if len(sys.argv) > 1 else "rebot"
@@ -57,6 +64,16 @@ def main() -> None:
         v = tgt - p
         n = np.linalg.norm(v)
         if n < 1e-6:
+            continue
+        # ⚠️ REJECT SELF-COLLIDING POSES. This model is a SINGLE arm with no table and no
+        # object, so any contact mj_forward finds is the arm intersecting itself. Without this
+        # the search happily returned a reBot left pose with link3 driven 0.83 mm into link5:
+        # the pose renders fine and IK solves fine, but the sim spends a constant -0.71 Nm of
+        # constraint force fighting it, so left_joint5 can never reach its command and the arm
+        # keeps a residual error no amount of servo tuning removes.
+        if d.ncon:
+            continue
+        if (q - lo).min() < LIMIT_MARGIN or (hi - q).min() < LIMIT_MARGIN:
             continue
         aim = float(ap @ (v / n))
         down = float(ap @ np.array([0, 0, -1.0]))
