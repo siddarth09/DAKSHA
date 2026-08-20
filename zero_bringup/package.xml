@@ -1,0 +1,28 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>zero_bringup</name>
+  <version>0.0.1</version>
+  <description>
+    Launch + controller configuration for the ZERO bimanual reBot workstation under
+    mujoco_ros2_control (PAL Robotics). Brings up robot_state_publisher, converts the URDF to
+    MJCF and publishes it on /mujoco_robot_description, starts mujoco_ros2_control's own
+    ros2_control_node, and spawns one trajectory controller per arm and per gripper.
+  </description>
+  <maintainer email="dayasagar.s@northeastern.edu">Sid</maintainer>
+  <license>Apache-2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <exec_depend>zero_description</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>mujoco_ros2_control</exec_depend>
+  <exec_depend>launch_ros</exec_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+</package>

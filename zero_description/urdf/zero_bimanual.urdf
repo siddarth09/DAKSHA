@@ -1,0 +1,882 @@
+<?xml version='1.0' encoding='utf-8'?>
+<robot name="zero_bimanual">
+  <material name="rs_base_black">
+    <color rgba="0.055 0.065 0.060 1" />
+  </material>
+  <material name="rs_motor_black">
+    <color rgba="0.045 0.052 0.049 1" />
+  </material>
+  <material name="rs_pla_black">
+    <color rgba="0.090 0.106 0.102 1" />
+  </material>
+  <material name="rs_wordmark_black">
+    <color rgba="0.010 0.012 0.011 1" />
+  </material>
+  <material name="rs_anodized_silver">
+    <color rgba="0.720 0.760 0.730 1" />
+  </material>
+  <material name="rs_seeed_green">
+    <color rgba="0.725 0.835 0.118 1" />
+  </material>
+  <link name="world" />
+  <joint name="left_mount" type="fixed">
+    <origin xyz="-0.05 0.22 0.75" rpy="0 0 0" />
+    <parent link="world" />
+    <child link="left_base_link" />
+  </joint>
+  <link name="left_base_link">
+    <inertial>
+      <origin xyz="2.87641888266442E-06 -0.000122302488725115 0.0243376121934547" rpy="0 0 0" />
+      <mass value="1.1774" />
+      <inertia ixx="0.00133040" ixy="0.00000001" ixz="0.00000000" iyy="0.00213119" iyz="0.00000000" izz="0.00275877" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/base_link.STL" />
+      </geometry>
+      <material name="rs_base_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_link1">
+    <inertial>
+      <origin xyz="0.00817652280320541 0.00122584211922395 0.0331419658967293" rpy="0 0 0" />
+      <mass value="0.4655" />
+      <inertia ixx="0.00025207" ixy="0.00000000" ixz="-0.00002832" iyy="0.00015464" iyz="0.00000000" izz="0.00023416" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link1.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_link2">
+    <inertial>
+      <origin xyz="-0.117864812717456 -0.00342226413942967 -0.0271551938501484" rpy="0 0 0" />
+      <mass value="1.972" />
+      <inertia ixx="0.00073374" ixy="-0.00000043" ixz="0.00000851" iyy="0.01255987" iyz="0.00000128" izz="0.01281387" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_2_3.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc2.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla2_black.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla2_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_link3">
+    <inertial>
+      <origin xyz="0.103427154487799 -0.0664137912104635 -0.0271068687716704" rpy="0 0 0" />
+      <mass value="1.062" />
+      <inertia ixx="0.00046807" ixy="-0.00003456" ixz="-0.00004260" iyy="0.00632695" iyz="0.00000006" izz="0.00648221" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc3.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_4.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_black_without_seeed_badge.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_seeed_badge_with_counters.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_seeed_wordmark_backing.STL" />
+      </geometry>
+      <material name="rs_wordmark_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_link4">
+    <inertial>
+      <origin xyz="0.0475544540775559 -0.0441113470158517 -0.0314111924918381" rpy="0 0 0" />
+      <mass value="0.66" />
+      <inertia ixx="0.00045986" ixy="0.00024219" ixz="-0.0" iyy="0.00075258" iyz="-0.0" izz="0.00066742" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_5.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc4.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_link5">
+    <inertial>
+      <origin xyz="0.0114400622356175 4.7907739316217E-06 0.0380487481818926" rpy="0 0 0" />
+      <mass value="0.150120457182895" />
+      <inertia ixx="7.34238025911107E-05" ixy="1.35700947009798E-08" ixz="-8.58146433770359E-07" iyy="5.5153884237714E-05" iyz="-1.32742144977931E-08" izz="5.29920095811017E-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_6.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc5.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla5_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_link6">
+    <inertial>
+      <origin xyz="1.80196022567525E-05 2.48334592051007E-08 0.00434805764057547" rpy="0 0 0" />
+      <mass value="0.03" />
+      <inertia ixx="4.42273835852359E-06" ixy="3.16758463739482E-12" ixz="1.51852818442002E-10" iyy="4.37185522080034E-06" iyz="-2.21864017603015E-12" izz="8.54299378942051E-06" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link6.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_gripper_end">
+    <inertial>
+      <origin xyz="-0.112751692515958 0.000128443070436966 -5.72602449749882E-06" rpy="0 0 0" />
+      <mass value="0.65" />
+      <inertia ixx="0.00037354" ixy="-0.00000011" ixz="0.00000050" iyy="0.00015830" iyz="0.00000348" izz="0.00045353" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla7_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc7.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_7.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/gripper_end.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_gripper_left">
+    <inertial>
+      <origin xyz="-0.00218008703135955 0.0187090355934181 0.00932188568692145" rpy="0 0 0" />
+      <mass value="0.0752" />
+      <inertia ixx="1.09877964176176E-05" ixy="0" ixz="0" iyy="9.50146036720166E-06" iyz="0" izz="9.30779991911125E-06" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla_left.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc_left.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/gripper_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="left_gripper_right">
+    <inertial>
+      <origin xyz="0.00218008703135955 -0.018709035593418 0.00932188568692151" rpy="0 0 0" />
+      <mass value="0.0752" />
+      <inertia ixx="1.09877964176176E-05" ixy="0" ixz="0" iyy="9.50146036720166E-06" iyz="0" izz="9.30779991911125E-06" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla_right.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc_right.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/gripper_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="left_joint1" type="revolute">
+    <origin xyz="-0.00034283 -0.00098683 0.075" rpy="0 0 0" />
+    <parent link="left_base_link" />
+    <child link="left_link1" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-2.8" upper="2.8" effort="36" velocity="50" />
+  </joint>
+  <joint name="left_joint2" type="revolute">
+    <origin xyz="0.020343 0.027237 0.07" rpy="-1.5708 0 0" />
+    <parent link="left_link1" />
+    <child link="left_link2" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="3.14" effort="36" velocity="50" />
+  </joint>
+  <joint name="left_joint3" type="revolute">
+    <origin xyz="-0.236 0 0" rpy="0 0 0" />
+    <parent link="left_link2" />
+    <child link="left_link3" />
+    <axis xyz="0 0 -1" />
+    <limit lower="0" upper="3.14" effort="36" velocity="50" />
+  </joint>
+  <joint name="left_joint4" type="revolute">
+    <origin xyz="0.228 -0.072746 0.0045" rpy="0 0 0" />
+    <parent link="left_link3" />
+    <child link="left_link4" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-1.57" upper="1.57" effort="14" velocity="40" />
+  </joint>
+  <joint name="left_joint5" type="revolute">
+    <origin xyz="0.087 -0.048 -0.03075" rpy="-1.5708 0 0" />
+    <parent link="left_link4" />
+    <child link="left_link5" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-1.57" upper="1.57" effort="14" velocity="40" />
+  </joint>
+  <joint name="left_joint6" type="revolute">
+    <origin xyz="0.0365 0 0.048" rpy="0 1.5708 0" />
+    <parent link="left_link5" />
+    <child link="left_link6" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-3.14" upper="3.14" effort="14" velocity="40" />
+  </joint>
+  <joint name="left_j_gripper_end" type="fixed">
+    <origin xyz="0 0 0.16621" rpy="3.1416 -1.5708 0" />
+    <parent link="left_link6" />
+    <child link="left_gripper_end" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <joint name="left_gripper_joint1" type="prismatic">
+    <origin xyz="-0.041939 -7.3385E-05 0" rpy="1.5708 -1.5708 0" />
+    <parent link="left_gripper_end" />
+    <child link="left_gripper_left" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.05" effort="500" velocity="10" />
+  </joint>
+  <joint name="left_gripper_joint2" type="prismatic">
+    <origin xyz="-0.041939 7.3385E-05 0" rpy="-1.5708 -1.5708 0" />
+    <parent link="left_gripper_end" />
+    <child link="left_gripper_right" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.0715" effort="500" velocity="10" />
+  </joint>
+  <joint name="right_mount" type="fixed">
+    <origin xyz="-0.05 -0.22 0.75" rpy="0 0 0" />
+    <parent link="world" />
+    <child link="right_base_link" />
+  </joint>
+  <link name="right_base_link">
+    <inertial>
+      <origin xyz="2.87641888266442E-06 -0.000122302488725115 0.0243376121934547" rpy="0 0 0" />
+      <mass value="1.1774" />
+      <inertia ixx="0.00133040" ixy="0.00000001" ixz="0.00000000" iyy="0.00213119" iyz="0.00000000" izz="0.00275877" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/base_link.STL" />
+      </geometry>
+      <material name="rs_base_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/base_link.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_link1">
+    <inertial>
+      <origin xyz="0.00817652280320541 0.00122584211922395 0.0331419658967293" rpy="0 0 0" />
+      <mass value="0.4655" />
+      <inertia ixx="0.00025207" ixy="0.00000000" ixz="-0.00002832" iyy="0.00015464" iyz="0.00000000" izz="0.00023416" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link1.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link1.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_link2">
+    <inertial>
+      <origin xyz="-0.117864812717456 -0.00342226413942967 -0.0271551938501484" rpy="0 0 0" />
+      <mass value="1.972" />
+      <inertia ixx="0.00073374" ixy="-0.00000043" ixz="0.00000851" iyy="0.01255987" iyz="0.00000128" izz="0.01281387" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_2_3.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc2.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla2_black.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla2_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link2.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_link3">
+    <inertial>
+      <origin xyz="0.103427154487799 -0.0664137912104635 -0.0271068687716704" rpy="0 0 0" />
+      <mass value="1.062" />
+      <inertia ixx="0.00046807" ixy="-0.00003456" ixz="-0.00004260" iyy="0.00632695" iyz="0.00000006" izz="0.00648221" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc3.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_4.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_black_without_seeed_badge.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_seeed_badge_with_counters.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_seeed_wordmark_backing.STL" />
+      </geometry>
+      <material name="rs_wordmark_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla3_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link3.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_link4">
+    <inertial>
+      <origin xyz="0.0475544540775559 -0.0441113470158517 -0.0314111924918381" rpy="0 0 0" />
+      <mass value="0.66" />
+      <inertia ixx="0.00045986" ixy="0.00024219" ixz="-0.0" iyy="0.00075258" iyz="-0.0" izz="0.00066742" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_5.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc4.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link4.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_link5">
+    <inertial>
+      <origin xyz="0.0114400622356175 4.7907739316217E-06 0.0380487481818926" rpy="0 0 0" />
+      <mass value="0.150120457182895" />
+      <inertia ixx="7.34238025911107E-05" ixy="1.35700947009798E-08" ixz="-8.58146433770359E-07" iyy="5.5153884237714E-05" iyz="-1.32742144977931E-08" izz="5.29920095811017E-05" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_6.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc5.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla5_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link5.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_link6">
+    <inertial>
+      <origin xyz="1.80196022567525E-05 2.48334592051007E-08 0.00434805764057547" rpy="0 0 0" />
+      <mass value="0.03" />
+      <inertia ixx="4.42273835852359E-06" ixy="3.16758463739482E-12" ixz="1.51852818442002E-10" iyy="4.37185522080034E-06" iyz="-2.21864017603015E-12" izz="8.54299378942051E-06" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link6.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/link6.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_gripper_end">
+    <inertial>
+      <origin xyz="-0.112751692515958 0.000128443070436966 -5.72602449749882E-06" rpy="0 0 0" />
+      <mass value="0.65" />
+      <inertia ixx="0.00037354" ixy="-0.00000011" ixz="0.00000050" iyy="0.00015830" iyz="0.00000348" izz="0.00045353" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla7_green.STL" />
+      </geometry>
+      <material name="rs_seeed_green" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc7.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/motor_7.STL" />
+      </geometry>
+      <material name="rs_motor_black" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/gripper_end.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_gripper_left">
+    <inertial>
+      <origin xyz="-0.00218008703135955 0.0187090355934181 0.00932188568692145" rpy="0 0 0" />
+      <mass value="0.0752" />
+      <inertia ixx="1.09877964176176E-05" ixy="0" ixz="0" iyy="9.50146036720166E-06" iyz="0" izz="9.30779991911125E-06" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla_left.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc_left.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/gripper_left.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <link name="right_gripper_right">
+    <inertial>
+      <origin xyz="0.00218008703135955 -0.018709035593418 0.00932188568692151" rpy="0 0 0" />
+      <mass value="0.0752" />
+      <inertia ixx="1.09877964176176E-05" ixy="0" ixz="0" iyy="9.50146036720166E-06" iyz="0" izz="9.30779991911125E-06" />
+    </inertial>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/pla_right.STL" />
+      </geometry>
+      <material name="rs_pla_black" />
+    </visual>
+    <visual>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/cnc_right.STL" />
+      </geometry>
+      <material name="rs_anodized_silver" />
+    </visual>
+    <collision>
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <geometry>
+        <mesh filename="package://zero_description/meshes/gripper_right.STL" />
+      </geometry>
+    </collision>
+  </link>
+  <joint name="right_joint1" type="revolute">
+    <origin xyz="-0.00034283 -0.00098683 0.075" rpy="0 0 0" />
+    <parent link="right_base_link" />
+    <child link="right_link1" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-2.8" upper="2.8" effort="36" velocity="50" />
+  </joint>
+  <joint name="right_joint2" type="revolute">
+    <origin xyz="0.020343 0.027237 0.07" rpy="-1.5708 0 0" />
+    <parent link="right_link1" />
+    <child link="right_link2" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="3.14" effort="36" velocity="50" />
+  </joint>
+  <joint name="right_joint3" type="revolute">
+    <origin xyz="-0.236 0 0" rpy="0 0 0" />
+    <parent link="right_link2" />
+    <child link="right_link3" />
+    <axis xyz="0 0 -1" />
+    <limit lower="0" upper="3.14" effort="36" velocity="50" />
+  </joint>
+  <joint name="right_joint4" type="revolute">
+    <origin xyz="0.228 -0.072746 0.0045" rpy="0 0 0" />
+    <parent link="right_link3" />
+    <child link="right_link4" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-1.57" upper="1.57" effort="14" velocity="40" />
+  </joint>
+  <joint name="right_joint5" type="revolute">
+    <origin xyz="0.087 -0.048 -0.03075" rpy="-1.5708 0 0" />
+    <parent link="right_link4" />
+    <child link="right_link5" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-1.57" upper="1.57" effort="14" velocity="40" />
+  </joint>
+  <joint name="right_joint6" type="revolute">
+    <origin xyz="0.0365 0 0.048" rpy="0 1.5708 0" />
+    <parent link="right_link5" />
+    <child link="right_link6" />
+    <axis xyz="0 0 -1" />
+    <limit lower="-3.14" upper="3.14" effort="14" velocity="40" />
+  </joint>
+  <joint name="right_j_gripper_end" type="fixed">
+    <origin xyz="0 0 0.16621" rpy="3.1416 -1.5708 0" />
+    <parent link="right_link6" />
+    <child link="right_gripper_end" />
+    <axis xyz="0 0 0" />
+  </joint>
+  <joint name="right_gripper_joint1" type="prismatic">
+    <origin xyz="-0.041939 -7.3385E-05 0" rpy="1.5708 -1.5708 0" />
+    <parent link="right_gripper_end" />
+    <child link="right_gripper_left" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.05" effort="500" velocity="10" />
+  </joint>
+  <joint name="right_gripper_joint2" type="prismatic">
+    <origin xyz="-0.041939 7.3385E-05 0" rpy="-1.5708 -1.5708 0" />
+    <parent link="right_gripper_end" />
+    <child link="right_gripper_right" />
+    <axis xyz="0 0 1" />
+    <limit lower="0" upper="0.0715" effort="500" velocity="10" />
+  </joint>
+  <ros2_control name="ZeroBimanualSystem" type="system">
+    <hardware>
+      <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
+      <param name="mujoco_model">/home/sid/projects25/src/ZERO/zero_description/mjcf/zero_bimanual.xml</param>
+    </hardware>
+    <joint name="left_joint1">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_joint2">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_joint3">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_joint4">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_joint5">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_joint6">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_gripper_joint1">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="left_gripper_joint2">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_joint1">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_joint2">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_joint3">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_joint4">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_joint5">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_joint6">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_gripper_joint1">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <joint name="right_gripper_joint2">
+      <command_interface name="position" />
+      <state_interface name="position" />
+      <state_interface name="velocity" />
+    </joint>
+    <sensor name="top">
+      <param name="frame_name">top_optical_frame</param>
+      <param name="image_topic">/zero/top/image_raw</param>
+      <param name="info_topic">/zero/top/camera_info</param>
+      <param name="depth_topic">/zero/top/depth</param>
+    </sensor>
+    <sensor name="front">
+      <param name="frame_name">front_optical_frame</param>
+      <param name="image_topic">/zero/front/image_raw</param>
+      <param name="info_topic">/zero/front/camera_info</param>
+      <param name="depth_topic">/zero/front/depth</param>
+    </sensor>
+    <sensor name="side">
+      <param name="frame_name">side_optical_frame</param>
+      <param name="image_topic">/zero/side/image_raw</param>
+      <param name="info_topic">/zero/side/camera_info</param>
+      <param name="depth_topic">/zero/side/depth</param>
+    </sensor>
+    <sensor name="left_wrist">
+      <param name="frame_name">left_wrist_optical_frame</param>
+      <param name="image_topic">/zero/left_wrist/image_raw</param>
+      <param name="info_topic">/zero/left_wrist/camera_info</param>
+      <param name="depth_topic">/zero/left_wrist/depth</param>
+    </sensor>
+    <sensor name="right_wrist">
+      <param name="frame_name">right_wrist_optical_frame</param>
+      <param name="image_topic">/zero/right_wrist/image_raw</param>
+      <param name="info_topic">/zero/right_wrist/camera_info</param>
+      <param name="depth_topic">/zero/right_wrist/depth</param>
+    </sensor>
+  </ros2_control>
+</robot>

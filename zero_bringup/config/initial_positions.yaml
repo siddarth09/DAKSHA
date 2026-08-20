@@ -1,0 +1,19 @@
+# menagerie's "raised" keyframe, sign-flipped to the URDF convention -- arms start clear of the table rather than folded into it.
+# Mirrors HOME_QPOS / GRIPPER_OPEN in scripts/zero_layout.py.
+initial_positions:
+  left_joint1: 0.0
+  left_joint2: 0.7
+  left_joint3: 1.1
+  left_joint4: 0.0
+  left_joint5: 0.0
+  left_joint6: 0.0
+  left_gripper_joint1: 0.0
+  left_gripper_joint2: 0.0
+  right_joint1: 0.0
+  right_joint2: 0.7
+  right_joint3: 1.1
+  right_joint4: 0.0
+  right_joint5: 0.0
+  right_joint6: 0.0
+  right_gripper_joint1: 0.0
+  right_gripper_joint2: 0.0
