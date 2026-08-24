@@ -106,6 +106,7 @@ def add_ros2_control(robot: ET.Element, key: str) -> None:
         f"$(find zero_description)/mjcf/zero_{key}.xml")
     # Faster-than-realtime stepping, for data collection and eval sweeps.
     ET.SubElement(hw, "param", {"name": "sim_speed_factor"}).text = "1.0"
+    ET.SubElement(hw, "param", {"name": "camera_publish_rate"}).text = f"{L.CAM_RATE_HZ}"
     # Without this the sim starts at qpos=0 -- arms bolt upright, which is exactly what the first
     # launch showed. gen_scene.py writes a `home` keyframe holding the searched per-side poses
     # plus the object's placed pose. (mujoco_system_interface.cpp:1353 reads this param.)
@@ -119,6 +120,17 @@ def add_ros2_control(robot: ET.Element, key: str) -> None:
 
     # Cameras publish ONLY if a <sensor> of the same name as the MJCF <camera> appears here.
     # No extra plugin: image/info/depth publishing lives in the core system interface.
+    # ── FINGERTIP F/T SENSORS. mujoco_ros2_control maps a <sensor mujoco_type="fts"> named X
+    # onto MJCF sensors X_force / X_torque, and exports exactly six state interfaces named
+    # force.x/y/z and torque.x/y/z -- that spelling is checked literally in the plugin, so a
+    # typo silently drops the axis rather than erroring. force_torque_sensor_broadcaster reads
+    # those and republishes a WrenchStamped.
+    for sensor_name, _ in L.ft_sensors(key):
+        sen = ET.SubElement(rc, "sensor", {"name": sensor_name})
+        ET.SubElement(sen, "param", {"name": "mujoco_type"}).text = "fts"
+        for axis in ("force.x", "force.y", "force.z", "torque.x", "torque.y", "torque.z"):
+            ET.SubElement(sen, "state_interface", {"name": axis})
+
     for cam in L.all_cameras():
         sen = ET.SubElement(rc, "sensor", {"name": cam})
         for k, v in (("frame_name", f"{cam}_optical_frame"),

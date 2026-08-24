@@ -23,6 +23,42 @@ controller_manager:
     right_gripper_controller:
       type: position_controllers/JointGroupPositionController
 
+    left_finger_joint1_ft_broadcaster:
+      type: force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster
+
+    left_finger_joint2_ft_broadcaster:
+      type: force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster
+
+    right_finger_joint1_ft_broadcaster:
+      type: force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster
+
+    right_finger_joint2_ft_broadcaster:
+      type: force_torque_sensor_broadcaster/ForceTorqueSensorBroadcaster
+
+left_finger_joint1_ft_broadcaster:
+  ros__parameters:
+    sensor_name: left_finger_joint1_ft
+    frame_id: left_finger_joint1_ft_site
+    topic_name: /zero/ft/left_finger_joint1_ft
+
+left_finger_joint2_ft_broadcaster:
+  ros__parameters:
+    sensor_name: left_finger_joint2_ft
+    frame_id: left_finger_joint2_ft_site
+    topic_name: /zero/ft/left_finger_joint2_ft
+
+right_finger_joint1_ft_broadcaster:
+  ros__parameters:
+    sensor_name: right_finger_joint1_ft
+    frame_id: right_finger_joint1_ft_site
+    topic_name: /zero/ft/right_finger_joint1_ft
+
+right_finger_joint2_ft_broadcaster:
+  ros__parameters:
+    sensor_name: right_finger_joint2_ft
+    frame_id: right_finger_joint2_ft_site
+    topic_name: /zero/ft/right_finger_joint2_ft
+
 left_arm_controller:
   ros__parameters:
     joints:

@@ -74,21 +74,6 @@
         </default>
       </default>
     </default>
-    <default class="obj_main">
-      <default class="obj_visual">
-        <geom type="mesh" contype="0" conaffinity="0" group="1"/>
-      </default>
-      <default class="obj_collision">
-        <geom solref="0.004" solimp="0.998 0.998" density="1" rgba="0.5 0 0 0.5"/>
-      </default>
-      <default class="obj_spawn">
-        <geom contype="0" conaffinity="0" rgba="1 1 1 0.5"/>
-        <site rgba="1 1 1 0.5"/>
-      </default>
-      <default class="obj_region">
-        <geom contype="0" conaffinity="0" group="1" rgba="0 1 0 0"/>
-      </default>
-    </default>
     <default class="plate_main">
       <default class="plate_visual">
         <geom type="mesh" contype="0" conaffinity="0" group="1" density="100"/>
@@ -105,7 +90,6 @@
   <asset>
     <texture type="skybox" colorspace="auto" name="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
     <texture type="2d" colorspace="auto" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
-    <texture type="2d" colorspace="linear" name="obj_LemonWedge001_material" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/lemon_wedge/LemonWedge001/visual/T_BC001.png"/>
     <texture type="2d" colorspace="linear" name="plate_Tray001_material" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/visual/T_Tray001_BC001.png"/>
     <material name="groundplane" texture="groundplane" texrepeat="5 5" reflectance="0.2"/>
     <material name="table_mat" rgba="0.72 0.6 0.44 1"/>
@@ -120,7 +104,6 @@
     <material name="right_black" class="right_panda" rgba="0.25 0.25 0.25 1"/>
     <material name="right_green" class="right_panda" rgba="0 1 0 1"/>
     <material name="right_light_blue" class="right_panda" rgba="0.039216 0.541176 0.780392 1"/>
-    <material name="obj_LemonWedge001_material" texture="obj_LemonWedge001_material" specular="0.310345"/>
     <material name="plate_Tray001_material" texture="plate_Tray001_material" specular="0.310345" shininess="0.141421"/>
     <mesh name="left_link0_c" file="link0.stl"/>
     <mesh name="left_link1_c" file="link1.stl"/>
@@ -256,8 +239,6 @@
     <mesh name="right_hand_4" file="hand_4.obj"/>
     <mesh name="right_finger_0" file="finger_0.obj"/>
     <mesh name="right_finger_1" file="finger_1.obj"/>
-    <mesh name="obj_LemonWedge001_vis" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/lemon_wedge/LemonWedge001/visual/LemonWedge001.obj"/>
-    <mesh name="obj_LemonWedge001_collision_mesh_0" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/lemon_wedge/LemonWedge001/collision/collision_mesh_collision_0.obj"/>
     <mesh name="plate_Tray001_vis" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/visual/Tray001.obj"/>
     <mesh name="plate_Tray001_collision_0_0" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_0.obj"/>
     <mesh name="plate_Tray001_collision_0_1" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_1.obj"/>
@@ -278,9 +259,7 @@
 
   <worldbody>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
-    <camera name="top" pos="0.3 0 1.6" quat="0.706835 0.0196192 -0.0196192 -0.706835" resolution="640 480" fovy="58"/>
-    <camera name="front" pos="1.15 0 1.15" quat="0.573635 0.413453 0.413453 0.573635" resolution="640 480" fovy="58"/>
-    <camera name="side" pos="0.3 -1.05 1.1" quat="0.776045 0.63039 -0.0120031 -0.0147765" resolution="640 480" fovy="58"/>
+    <camera name="front" pos="1.15 0 1.15" quat="0.573635 0.413453 0.413453 0.573635" resolution="224 224" fovy="58"/>
     <light pos="-0.6 0.7 2.2" dir="0.276172 -0.276172 -0.920575" ambient="0.25 0.25 0.25" diffuse="0.35 0.35 0.35" specular="0.05 0.05 0.05"/>
     <light pos="0.9 -0.7 2" dir="-0.357771 0.268328 -0.894427" ambient="0.25 0.25 0.25" diffuse="0.35 0.35 0.35" specular="0.05 0.05 0.05"/>
     <body name="table" pos="0.05 0 0.73">
@@ -389,8 +368,8 @@
                       <geom class="left_visual" material="left_off_white" mesh="left_hand_4"/>
                       <geom class="left_collision" mesh="left_hand_c"/>
                       <site name="left_panda_ee" pos="0 0 0.107" group="4" rgba="1 0 0 1"/>
-                      <site name="left_eef" pos="0 0 0.1" size="0.008" group="4"/>
-                      <camera name="left_wrist" pos="0 0 0.02" quat="0 1 0 0" resolution="640 480" fovy="70"/>
+                      <site name="left_eef" pos="0.0049 0 0.0602" size="0.008" group="4"/>
+                      <camera name="left_wrist" pos="0 0 0.02" quat="0 1 0 0" resolution="224 224" fovy="70"/>
                       <body name="left_left_finger" pos="0 0 0.0584" gravcomp="1">
                         <inertial pos="0 0 0" mass="0.015" diaginertia="2.375e-06 2.375e-06 7.5e-07"/>
                         <joint name="left_finger_joint1" class="left_finger" pos="0 0 0" axis="0 1 0"/>
@@ -402,6 +381,7 @@
                         <geom class="left_fingertip_pad_collision_3" pos="-0.0055 0.002 0.05"/>
                         <geom class="left_fingertip_pad_collision_4" pos="0.0055 0.002 0.0395"/>
                         <geom class="left_fingertip_pad_collision_5" pos="-0.0055 0.002 0.0395"/>
+                        <site name="left_finger_joint1_ft_site" pos="0 0 0" group="4"/>
                       </body>
                       <body name="left_right_finger" pos="0 0 0.0584" quat="0 0 0 1" gravcomp="1">
                         <inertial pos="0 0 0" mass="0.015" diaginertia="2.375e-06 2.375e-06 7.5e-07"/>
@@ -414,6 +394,7 @@
                         <geom class="left_fingertip_pad_collision_3" pos="-0.0055 0.002 0.05"/>
                         <geom class="left_fingertip_pad_collision_4" pos="0.0055 0.002 0.0395"/>
                         <geom class="left_fingertip_pad_collision_5" pos="-0.0055 0.002 0.0395"/>
+                        <site name="left_finger_joint2_ft_site" pos="0 0 0" group="4"/>
                       </body>
                     </body>
                   </body>
@@ -515,8 +496,8 @@
                       <geom class="right_visual" material="right_off_white" mesh="right_hand_4"/>
                       <geom class="right_collision" mesh="right_hand_c"/>
                       <site name="right_panda_ee" pos="0 0 0.107" group="4" rgba="1 0 0 1"/>
-                      <site name="right_eef" pos="0 0 0.1" size="0.008" group="4"/>
-                      <camera name="right_wrist" pos="0 0 0.02" quat="0 1 0 0" resolution="640 480" fovy="70"/>
+                      <site name="right_eef" pos="0.0049 0 0.0602" size="0.008" group="4"/>
+                      <camera name="right_wrist" pos="0 0 0.02" quat="0 1 0 0" resolution="224 224" fovy="70"/>
                       <body name="right_left_finger" pos="0 0 0.0584" gravcomp="1">
                         <inertial pos="0 0 0" mass="0.015" diaginertia="2.375e-06 2.375e-06 7.5e-07"/>
                         <joint name="right_finger_joint1" class="right_finger" pos="0 0 0" axis="0 1 0"/>
@@ -528,6 +509,7 @@
                         <geom class="right_fingertip_pad_collision_3" pos="-0.0055 0.002 0.05"/>
                         <geom class="right_fingertip_pad_collision_4" pos="0.0055 0.002 0.0395"/>
                         <geom class="right_fingertip_pad_collision_5" pos="-0.0055 0.002 0.0395"/>
+                        <site name="right_finger_joint1_ft_site" pos="0 0 0" group="4"/>
                       </body>
                       <body name="right_right_finger" pos="0 0 0.0584" quat="0 0 0 1" gravcomp="1">
                         <inertial pos="0 0 0" mass="0.015" diaginertia="2.375e-06 2.375e-06 7.5e-07"/>
@@ -540,6 +522,7 @@
                         <geom class="right_fingertip_pad_collision_3" pos="-0.0055 0.002 0.05"/>
                         <geom class="right_fingertip_pad_collision_4" pos="0.0055 0.002 0.0395"/>
                         <geom class="right_fingertip_pad_collision_5" pos="-0.0055 0.002 0.0395"/>
+                        <site name="right_finger_joint2_ft_site" pos="0 0 0" group="4"/>
                       </body>
                     </body>
                   </body>
@@ -548,14 +531,6 @@
             </body>
           </body>
         </body>
-      </body>
-    </body>
-    <body name="obj_root" pos="0.34 0.45 0.761617">
-      <joint type="free"/>
-      <body name="obj_object">
-        <geom class="obj_visual" group="2" friction="0.95 0.3 0.1" solref="0.001" solimp="0.998 0.998" material="obj_LemonWedge001_material" mesh="obj_LemonWedge001_vis"/>
-        <geom name="obj_reg_bbox" class="obj_region" size="0.0087375 0.026972 0.011117" type="box" group="4" mass="0"/>
-        <geom class="obj_collision" type="mesh" group="3" mesh="obj_LemonWedge001_collision_mesh_0"/>
       </body>
     </body>
     <body name="plate_root" pos="0.34 -0.45 0.752633">
@@ -580,6 +555,10 @@
         <geom name="plate_reg_bbox" class="plate_region" size="0.200268 0.112389 0.0131907" pos="0 0 0.0110579" type="box" group="4"/>
       </body>
     </body>
+    <body name="obj_root" pos="0.34 0.45 0.808">
+      <joint type="free"/>
+      <geom name="obj_can" size="0.033 0.0575" type="cylinder" group="2" friction="1 0.02 0.002" solref="0.005" mass="0.015" rgba="0.72 0.11 0.13 1"/>
+    </body>
   </worldbody>
 
   <contact>
@@ -600,7 +579,7 @@
     <general name="left_actuator5" class="left_panda" joint="left_joint5" forcerange="-12 12" gainprm="2000" biasprm="0 -2000 -200"/>
     <general name="left_actuator6" class="left_panda" joint="left_joint6" ctrlrange="-0.0175 3.7525" forcerange="-12 12" gainprm="2000" biasprm="0 -2000 -200"/>
     <general name="left_actuator7" class="left_panda" joint="left_joint7" forcerange="-12 12" gainprm="2000" biasprm="0 -2000 -200"/>
-    <general name="left_gripper_actuator" joint="left_finger_joint1" ctrlrange="0 0.4" biastype="affine" gainprm="500" biasprm="0 -500"/>
+    <general name="left_gripper_actuator" joint="left_finger_joint1" ctrlrange="0 0.4" forcerange="-40 40" biastype="affine" gainprm="500" biasprm="0 -500"/>
     <general name="right_actuator1" class="right_panda" joint="right_joint1" gainprm="4500" biasprm="0 -4500 -450"/>
     <general name="right_actuator2" class="right_panda" joint="right_joint2" ctrlrange="-1.7628 1.7628" gainprm="4500" biasprm="0 -4500 -450"/>
     <general name="right_actuator3" class="right_panda" joint="right_joint3" gainprm="3500" biasprm="0 -3500 -350"/>
@@ -608,12 +587,23 @@
     <general name="right_actuator5" class="right_panda" joint="right_joint5" forcerange="-12 12" gainprm="2000" biasprm="0 -2000 -200"/>
     <general name="right_actuator6" class="right_panda" joint="right_joint6" ctrlrange="-0.0175 3.7525" forcerange="-12 12" gainprm="2000" biasprm="0 -2000 -200"/>
     <general name="right_actuator7" class="right_panda" joint="right_joint7" forcerange="-12 12" gainprm="2000" biasprm="0 -2000 -200"/>
-    <general name="right_gripper_actuator" joint="right_finger_joint1" ctrlrange="0 0.4" biastype="affine" gainprm="500" biasprm="0 -500"/>
+    <general name="right_gripper_actuator" joint="right_finger_joint1" ctrlrange="0 0.4" forcerange="-40 40" biastype="affine" gainprm="500" biasprm="0 -500"/>
   </actuator>
 
+  <sensor>
+    <force site="left_finger_joint1_ft_site" name="left_finger_joint1_ft_force"/>
+    <torque site="left_finger_joint1_ft_site" name="left_finger_joint1_ft_torque"/>
+    <force site="left_finger_joint2_ft_site" name="left_finger_joint2_ft_force"/>
+    <torque site="left_finger_joint2_ft_site" name="left_finger_joint2_ft_torque"/>
+    <force site="right_finger_joint1_ft_site" name="right_finger_joint1_ft_force"/>
+    <torque site="right_finger_joint1_ft_site" name="right_finger_joint1_ft_torque"/>
+    <force site="right_finger_joint2_ft_site" name="right_finger_joint2_ft_force"/>
+    <torque site="right_finger_joint2_ft_site" name="right_finger_joint2_ft_torque"/>
+  </sensor>
+
   <keyframe>
-    <key name="left_home" qpos="0 0 0 -1.57079 0 1.57079 -0.7853 0.04 0.04 0 0 0 0 0 0 0 0 0 0.34 0.45 0.761617 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0 0 0 -1.57079 0 1.57079 -0.7853 0.04 0 0 0 0 0 0 0 0"/>
-    <key name="right_home" qpos="0 0 0 0 0 0 0 0 0 0 0 0 -1.57079 0 1.57079 -0.7853 0.04 0.04 0.34 0.45 0.761617 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0 0 0 0 0 0 0 0 0 0 0 -1.57079 0 1.57079 -0.7853 0.04"/>
-    <key name="home" qpos="0.207 0.486 -0.147 -1.985 -0.542 2.558 -0.688 0.04 0.04 0.277 0.612 -0.336 -1.788 0.422 2.137 0.005 0.04 0.04 0.34 0.45 0.761617 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0.207 0.486 -0.147 -1.985 -0.542 2.558 -0.688 0.04 0.277 0.612 -0.336 -1.788 0.422 2.137 0.005 0.04"/>
+    <key name="left_home" qpos="0 0 0 -1.57079 0 1.57079 -0.7853 0.04 0.04 0 0 0 0 0 0 0 0 0 0.34 0.45 0.808 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0 0 0 -1.57079 0 1.57079 -0.7853 0.04 0 0 0 0 0 0 0 0"/>
+    <key name="right_home" qpos="0 0 0 0 0 0 0 0 0 0 0 0 -1.57079 0 1.57079 -0.7853 0.04 0.04 0.34 0.45 0.808 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0 0 0 0 0 0 0 0 0 0 0 -1.57079 0 1.57079 -0.7853 0.04"/>
+    <key name="home" qpos="-0.55 0.49 0.624 -1.8 -0.358 2.13 1.018 0.04 0.04 -0.512 0.501 0.577 -1.81 -0.35 2.163 1.014 0.04 0.04 0.34 -0.45 0.752633 1 0 0 0 0.34 0.45 0.808 1 0 0 0" ctrl="-0.55 0.49 0.624 -1.8 -0.358 2.13 1.018 0.04 -0.512 0.501 0.577 -1.81 -0.35 2.163 1.014 0.04"/>
   </keyframe>
 </mujoco>

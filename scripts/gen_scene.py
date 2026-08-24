@@ -80,8 +80,76 @@ def add_task(spec: mujoco.MjSpec) -> None:
     # 0.5 mm of clearance rather than exact contact, so nothing starts the episode already
     # interpenetrating the table and getting pushed out by the contact solver.
     CLEARANCE = 0.0005
+
+    # ── THE CAN: a mesh you can see over a cylinder the solver can trust. ─────────────────
+    # SPLIT VISUAL FROM COLLISION, the same way every menagerie robot does. Neither half alone
+    # works here. A bare primitive is numerically ideal and looks like a placeholder -- it
+    # rendered as a plain red cylinder, which is not a can. A raw robocasa asset looks right and
+    # brings its convex-hull collision with it, which is what made the mesh objects rock (a single
+    # narrowphase contact point), tip over, and behave differently at each mass.
+    # So: the asset's meshes are attached with collision DISABLED and zero density, purely to be
+    # seen, and one analytic cylinder underneath does all the physics and carries all the mass.
+    can = L.PICK_PRIMITIVE
+    half = can["half_height"]
+    # The cylinder hides in the collision group ONLY when a skin is drawn over it. With
+    # PICK_SKIN = None it is the only geometry there is, so it must sit in a visible group --
+    # otherwise the can is invisible while still perfectly solid, which is a maddening thing to
+    # debug from a camera feed.
+    skin = getattr(L, "PICK_SKIN", None)
+    body = spec.worldbody.add_body(
+        name="obj_root",
+        pos=[L.PICK_POS[0], L.PICK_POS[1], L.TABLE_TOP_Z + half + CLEARANCE])
+    body.add_freejoint()
+    g = body.add_geom(
+        name="obj_can",
+        type=mujoco.mjtGeom.mjGEOM_CYLINDER,
+        size=[can["radius"], half, 0.0],
+        rgba=list(can["rgba"]),
+        friction=list(can["friction"]),
+        solref=list(can.get("solref", (0.02, 1.0))),
+        group=3 if skin is not None else 2,
+    )
+    g.mass = L.PICK_MASS
+
+    if skin is not None:
+        vis = mujoco.MjSpec.from_file(str(skin))
+        for coll in (vis.meshes, vis.textures):
+            for asset in coll:
+                if asset.file and not asset.file.startswith("/"):
+                    asset.file = str((skin.parent / asset.file).resolve())
+        # Measure the skin so it can be scaled onto the collider instead of guessed at.
+        pm = vis.compile()
+        pd = mujoco.MjData(pm)
+        mujoco.mj_forward(pm, pd)
+        lo = np.full(3, np.inf)
+        hi = np.full(3, -np.inf)
+        for gi in range(pm.ngeom):
+            if pm.geom_type[gi] != mujoco.mjtGeom.mjGEOM_MESH:
+                continue
+            mid = pm.geom_dataid[gi]
+            V = pm.mesh_vert[pm.mesh_vertadr[mid]:
+                             pm.mesh_vertadr[mid] + pm.mesh_vertnum[mid]].reshape(-1, 3)
+            W = (pd.geom_xmat[gi].reshape(3, 3) @ V.T).T + pd.geom_xpos[gi]
+            lo, hi = np.minimum(lo, W.min(0)), np.maximum(hi, W.max(0))
+        ext = hi - lo
+        sxy = (2 * can["radius"]) / max(ext[0], ext[1])
+        sz = (2 * half) / ext[2]
+        for mesh in vis.meshes:
+            mesh.scale = [mesh.scale[0] * sxy, mesh.scale[1] * sxy, mesh.scale[2] * sz]
+        for geom in vis.geoms:
+            geom.contype = 0
+            geom.conaffinity = 0
+            # `*_reg_bbox` are robocasa's annotation boxes, not geometry -- park them in 4 so
+            # they stay hidden, or a wireframe box renders around the can.
+            geom.group = 4 if geom.name.endswith("reg_bbox") else 2
+            geom.density = 0.0        # ⚠️ a visual geom still contributes MASS unless told not to
+        # Centre the skin on the collider: the asset's body origin is not its centroid.
+        centre = (lo + hi) / 2.0 * np.array([sxy, sxy, sz])
+        spec.attach(vis, prefix="skin_",
+                    frame=body.add_frame(pos=[-centre[0], -centre[1], -centre[2]],
+                                         quat=[1, 0, 0, 0]))
+
     for label, path, pos, free in (
-        ("obj", L.PICK_OBJECT, L.PICK_POS, True),
         ("plate", L.PLACE_TARGET, L.PLACE_POS, True),
     ):
         # x,y come from the layout; z is MEASURED so the object rests ON the table. The z in
@@ -117,6 +185,30 @@ def add_task(spec: mujoco.MjSpec) -> None:
                 geom.group = 3
             else:
                 geom.group = 2
+
+        # Force the pick object's mass (see L.PICK_MASS). Density scales mass linearly, so
+        # measure what the asset's own density gives and rescale every collision geom by the
+        # ratio. Done on the SPEC, before compiling into the scene -- a post-compile write to
+        # body_mass is silently ignored.
+        # PICK object only. Keyed on `free` this also caught the tray, which is free-jointed
+        # too, and a 2.8 kg tray became a 0.39 kg one that slides when nudged.
+        if label == "obj" and getattr(L, "PICK_MASS", None):
+            probe = mujoco.MjSpec.from_file(str(path))
+            for coll in (probe.meshes, probe.textures):
+                for asset in coll:
+                    if asset.file and not asset.file.startswith("/"):
+                        asset.file = str((path.parent / asset.file).resolve())
+            pm = probe.compile()
+            cur = float(sum(pm.body_mass))
+            if cur > 1e-9:
+                # EVERY geom, not just the colliding ones: in MuJoCo a visual geom contributes
+                # mass exactly like a collision geom unless told otherwise. Filtering on contype
+                # left this asset's nested `*_Prop` body unscaled and the can still weighed
+                # 1.19 kg. And SUM over bodies, not the biggest one -- the asset splits its mass
+                # across a nested body, so `obj_object` alone reads well under the true payload.
+                scale = L.PICK_MASS / cur
+                for geom in child.geoms:
+                    geom.density *= scale
 
         top = child.worldbody.bodies[0]
         top.name = "root"
@@ -263,7 +355,41 @@ def build(key: str) -> mujoco.MjSpec:
             if body.name.startswith(f"{side}_"):
                 body.gravcomp = 1.0
 
+    # Cap gripper actuator force -- see L.ROBOTS[*]["grip_force"]. Done on the spec so it is
+    # compiled in; a post-compile write to actuator_forcerange is ignored like every other one.
+    fmax = r.get("grip_force")
+    if fmax:
+        want = {L.prefixed(side, j) for side in L.SIDES for j in r["gripper_joints"]}
+        n_capped = 0
+        for act in spec.actuators:
+            if act.target in want:
+                act.forcerange = [-fmax, fmax]
+                n_capped += 1
+        assert n_capped, f"no gripper actuator matched {sorted(want)}"
+
     add_task(spec)
+
+    # ── FINGERTIP FORCE/TORQUE SENSORS. A site per finger body plus a matching force+torque
+    # pair. MuJoCo's force/torque sensors report the wrench transmitted through the sensorised
+    # body's own joint, so a site on the finger gives that finger's grasp load -- which is the
+    # measurement that distinguishes "both pads loaded" from "object resting against one pad".
+    # ⚠️ Names are a CONTRACT: mujoco_ros2_control resolves a <sensor mujoco_type="fts"> named X
+    # to MJCF sensors X_force and X_torque. Both ends come from L.ft_sensors() so they cannot
+    # drift; check_parity.py asserts the pairing.
+    for sensor_name, joint_name in L.ft_sensors(key):
+        jnt = spec.joint(joint_name)
+        assert jnt is not None, f"no joint {joint_name!r} to attach an F/T sensor to"
+        site_name = f"{sensor_name}_site"
+        # The site goes on the body that OWNS the finger joint, at that body's origin.
+        spec.body(jnt.parent.name).add_site(name=site_name, pos=[0.0, 0.0, 0.0],
+                                            group=4)     # marker only, never rendered
+        for kind, stype in (("force", mujoco.mjtSensor.mjSENS_FORCE),
+                            ("torque", mujoco.mjtSensor.mjSENS_TORQUE)):
+            sen = spec.add_sensor()
+            sen.name = f"{sensor_name}_{kind}"
+            sen.type = stype
+            sen.objtype = mujoco.mjtObj.mjOBJ_SITE
+            sen.objname = site_name
 
     # eef sites + cameras. Neither menagerie model ships a site, and nothing pose-based (IK, an
     # ee_to_object observation, a reach reward) can work without one.
@@ -285,7 +411,16 @@ def main() -> None:
     if key not in L.ROBOTS:
         raise SystemExit(f"unknown robot {key!r}; known: {list(L.ROBOTS)}")
     r = L.ROBOTS[key]
-    spec = build(key)
+
+    # ⚠️ ROUND-TRIP THROUGH XML BEFORE WRITING THE KEYFRAME. spec.to_xml() does not necessarily
+    # emit bodies in the order the in-process compile enumerated them, and a keyframe is a FLAT
+    # qpos vector indexed by that order. Writing one straight from the in-process MjData produced
+    # a keyframe whose free-joint blocks were transposed on reload: the can loaded at the tray's
+    # pose, 55 mm inside the table, while the tray loaded at the can's. Nothing errors -- the
+    # vector is the right length, just permuted -- and it looks like a placement bug in add_task.
+    # Re-loading the emitted XML gives a spec whose ordering IS the ordering the keyframe will be
+    # read back with, so build the keyframe against that.
+    spec = mujoco.MjSpec.from_string(build(key).to_xml())
     model = spec.compile()
     d = mujoco.MjData(model)
 

@@ -76,8 +76,42 @@ def mjcf_cameras() -> set[str]:
 
 
 def urdf_camera_sensors() -> set[str]:
+    """CAMERA sensors only. The <sensor> block also carries the fingertip force/torque sensors,
+    which are distinguished by a `mujoco_type` param -- cameras have none. Matching on the tag
+    alone made this check fail the moment F/T was added, reporting the F/T names as 'unexpected'
+    cameras."""
     root = ET.parse(URDF).getroot()
-    return {x.get("name") for rc in root.findall("ros2_control") for x in rc.findall("sensor")}
+    out = set()
+    for rc in root.findall("ros2_control"):
+        for x in rc.findall("sensor"):
+            types = {p.get("name") for p in x.findall("param")}
+            if "mujoco_type" not in types:
+                out.add(x.get("name"))
+    return out
+
+
+def urdf_ft_sensors() -> set[str]:
+    root = ET.parse(URDF).getroot()
+    out = set()
+    for rc in root.findall("ros2_control"):
+        for x in rc.findall("sensor"):
+            for p in x.findall("param"):
+                if p.get("name") == "mujoco_type" and p.text == "fts":
+                    out.add(x.get("name"))
+    return out
+
+
+def mjcf_ft_sensors() -> set[str]:
+    """MJCF force/torque sensor pairs, reported by the base name the URDF must declare.
+
+    mujoco_ros2_control resolves a `<sensor mujoco_type="fts">` named X to MJCF sensors X_force
+    and X_torque. If only one of the pair exists the plugin logs an error and skips the sensor --
+    it publishes nothing and the arm still works, so this is the same silent by-name failure as
+    the cameras and the joints.
+    """
+    m = mujoco.MjModel.from_xml_path(str(MJCF))
+    names = {mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_SENSOR, i) for i in range(m.nsensor)}
+    return {n[:-6] for n in names if n and n.endswith("_force") and f"{n[:-6]}_torque" in names}
 
 
 def check_kinematics(n_samples: int = 500, tol_mm: float = 0.5) -> bool:
@@ -186,6 +220,29 @@ def check_eef_frame(n_samples: int = 300, tol_mm: float = 0.5) -> bool:
     return ok
 
 
+def check_tcp(tol_mm: float = 5.0) -> bool:
+    """The tool point must sit where the fingers actually close.
+
+    `eef_offset` is what moves the IK's target -- and the recorded action -- from the gripper body
+    to the pinch point. Nothing detects a wrong one: IK still converges, beautifully, onto a point
+    in mid-air next to the gripper, so the arm reports arriving at the object and the fingers shut
+    on nothing. The reBot shipped 113 mm out (a guessed 0.10 along +z when its fingers close 49 mm
+    along -x) and it presented as "the gripper cannot grasp anything"; Panda was 17.9 mm out,
+    which merely biased every grasp. scripts/measure_tcp.py prints the correct value.
+    """
+    sys.path.insert(0, str(L.ROOT / "scripts"))
+    import measure_tcp
+
+    off, err = measure_tcp.measure(KEY)
+    ok = err * 1000 <= tol_mm
+    print(f"{'OK  ' if ok else 'FAIL':4}  {'tool point vs fingers':28} "
+          f"{err * 1000:.2f} mm from the grasp centre (tol {tol_mm})")
+    if not ok:
+        print(f"        measured offset: ({off[0]:.4f}, {off[1]:.4f}, {off[2]:.4f})"
+              f"  -- run scripts/measure_tcp.py")
+    return ok
+
+
 def report_superset(name: str, got: set[str], want: set[str]) -> bool:
     """MJCF may legitimately hold MORE joints than ros2_control commands.
 
@@ -232,6 +289,10 @@ def main() -> int:
     checks.append(report("URDF camera <sensor>s", urdf_camera_sensors(), set(L.all_cameras())))
     checks.append(check_kinematics())
     checks.append(check_eef_frame())
+    checks.append(check_tcp())
+    want_ft = {n for n, _ in L.ft_sensors(KEY)}
+    checks.append(report("URDF <sensor> fts", urdf_ft_sensors(), want_ft))
+    checks.append(report("MJCF force/torque pairs", mjcf_ft_sensors(), want_ft))
     ctrl = controller_joints()
     if ctrl:
         # Controllers legitimately cover a SUBSET (arm controller + gripper controller split),

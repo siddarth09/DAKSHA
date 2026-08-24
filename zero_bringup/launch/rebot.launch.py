@@ -12,21 +12,46 @@ PIPELINE:
   3. Controllers spawn once the node is up -- joint_state_broadcaster first, or the position
      controllers activate with no state interfaces to read and immediately fault.
 
-Cameras: 5 MJCF cameras are published because the URDF declares a matching <sensor> for
-each (top, front, side, left_wrist, right_wrist). View them in RViz on /zero/<cam>/image_raw.
+Cameras: 3 MJCF cameras are published because the URDF declares a matching <sensor> for
+each (front, left_wrist, right_wrist). View them in RViz on /zero/<cam>/image_raw.
 
 Run:  ros2 launch zero_bringup rebot.launch.py
 """
 
 from launch import LaunchDescription
-from launch.actions import RegisterEventHandler
+from launch.actions import OpaqueFunction, RegisterEventHandler
 from launch.event_handlers import OnProcessStart
 from launch.substitutions import Command, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
 
-CONTROLLERS = ['joint_state_broadcaster', 'left_arm_controller', 'left_gripper_controller', 'right_arm_controller', 'right_gripper_controller']
+CONTROLLERS = ['joint_state_broadcaster', 'left_arm_controller', 'left_gripper_controller', 'right_arm_controller', 'right_gripper_controller', 'left_gripper_joint1_ft_broadcaster', 'left_gripper_joint2_ft_broadcaster', 'right_gripper_joint1_ft_broadcaster', 'right_gripper_joint2_ft_broadcaster']
+
+
+def _preflight(context):
+    """Refuse to start if a mujoco_ros2_control node is already up.
+
+    Two controller_managers on one ROS graph is not a clean failure. Both advertise
+    /controller_manager/load_controller, /configure_controller and /list_controllers, so each
+    spawner request is answered by whichever responds first -- which means one request lands on
+    the old manager and the next on the new one. What you get is ~200 lines of mutually
+    contradictory output: "Controller already loaded, skipping load_controller" from the manager
+    that has them, "no controller with this name exists" from the manager that does not, and a
+    controller logging "configure successful" while its own spawner reports "Failed to configure
+    controller". None of those messages mentions the actual problem, and every one of them points
+    at the controller config instead.
+    """
+    import subprocess
+    found = subprocess.run(["pgrep", "-f", "mujoco_ros2_control/ros2_control_node"],
+                           capture_output=True, text=True).stdout.split()
+    if found:
+        pids = ' '.join(found)
+        raise RuntimeError(
+            'a mujoco_ros2_control node is ALREADY RUNNING (pid ' + pids + '). Two '
+            'controller_managers on one ROS graph answer each other service calls, so '
+            'every spawner fails with a misleading message. Stop it first:  kill ' + pids)
+    return []
 
 
 def generate_launch_description() -> LaunchDescription:
@@ -61,6 +86,7 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[control_params],
     )
     return LaunchDescription([
+        OpaqueFunction(function=_preflight),
         rsp, ctrl,
         RegisterEventHandler(OnProcessStart(target_action=ctrl, on_start=spawners + [eef])),
     ])

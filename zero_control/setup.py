@@ -20,6 +20,10 @@ setup(
         "console_scripts": [
             "eef_control = zero_control.eef_control_node:main",
             "servo_test = zero_control.servo_test:main",
+            "teleop = zero_control.teleop_node:main",
+            "joy_probe = zero_control.joy_probe:main",
+            "rerun_viewer = zero_control.rerun_viewer:main",
+            "record = zero_control.record_node:main",
         ],
     },
 )

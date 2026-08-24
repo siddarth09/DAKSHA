@@ -1388,6 +1388,7 @@
       <plugin>mujoco_ros2_control/MujocoSystemInterface</plugin>
       <param name="mujoco_model">$(find zero_description)/mjcf/zero_panda.xml</param>
       <param name="sim_speed_factor">1.0</param>
+      <param name="camera_publish_rate">30.0</param>
       <param name="initial_keyframe">home</param>
     </hardware>
     <joint name="left_joint1">
@@ -1470,23 +1471,47 @@
       <state_interface name="position" />
       <state_interface name="velocity" />
     </joint>
-    <sensor name="top">
-      <param name="frame_name">top_optical_frame</param>
-      <param name="image_topic">/zero/top/image_raw</param>
-      <param name="info_topic">/zero/top/camera_info</param>
-      <param name="depth_topic">/zero/top/depth</param>
+    <sensor name="left_finger_joint1_ft">
+      <param name="mujoco_type">fts</param>
+      <state_interface name="force.x" />
+      <state_interface name="force.y" />
+      <state_interface name="force.z" />
+      <state_interface name="torque.x" />
+      <state_interface name="torque.y" />
+      <state_interface name="torque.z" />
+    </sensor>
+    <sensor name="left_finger_joint2_ft">
+      <param name="mujoco_type">fts</param>
+      <state_interface name="force.x" />
+      <state_interface name="force.y" />
+      <state_interface name="force.z" />
+      <state_interface name="torque.x" />
+      <state_interface name="torque.y" />
+      <state_interface name="torque.z" />
+    </sensor>
+    <sensor name="right_finger_joint1_ft">
+      <param name="mujoco_type">fts</param>
+      <state_interface name="force.x" />
+      <state_interface name="force.y" />
+      <state_interface name="force.z" />
+      <state_interface name="torque.x" />
+      <state_interface name="torque.y" />
+      <state_interface name="torque.z" />
+    </sensor>
+    <sensor name="right_finger_joint2_ft">
+      <param name="mujoco_type">fts</param>
+      <state_interface name="force.x" />
+      <state_interface name="force.y" />
+      <state_interface name="force.z" />
+      <state_interface name="torque.x" />
+      <state_interface name="torque.y" />
+      <state_interface name="torque.z" />
     </sensor>
     <sensor name="front">
       <param name="frame_name">front_optical_frame</param>
       <param name="image_topic">/zero/front/image_raw</param>
       <param name="info_topic">/zero/front/camera_info</param>
       <param name="depth_topic">/zero/front/depth</param>
-    </sensor>
-    <sensor name="side">
-      <param name="frame_name">side_optical_frame</param>
-      <param name="image_topic">/zero/side/image_raw</param>
-      <param name="info_topic">/zero/side/camera_info</param>
-      <param name="depth_topic">/zero/side/depth</param>
     </sensor>
     <sensor name="left_wrist">
       <param name="frame_name">left_wrist_optical_frame</param>

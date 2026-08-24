@@ -31,6 +31,15 @@ N = 400_000
 # against its stop cannot contribute. Costs nothing: the search has 400k samples to spend.
 LIMIT_MARGIN = 0.15
 
+# Minimum alignment of the approach axis with straight down (1.0 = vertical). A HARD constraint,
+# not a scoring term. It used to be `+ 0.6 * down` inside the score, which the optimiser simply
+# traded away: only ~2% of random poses point within 26 deg of vertical, so the search bought
+# aim and standoff with posture and returned reBot poses tilted 55-74 deg off vertical. Those
+# cannot grasp a can standing on a table -- the gripper arrives sideways and knocks it over,
+# which is exactly what the grasp test showed (the can ended up on the floor). Both arms CAN
+# reach down=1.000, so requiring it costs nothing but search samples.
+MIN_DOWN = 0.90
+
 
 def main() -> None:
     key = sys.argv[1] if len(sys.argv) > 1 else "rebot"
@@ -52,6 +61,15 @@ def main() -> None:
     # Each arm aims at ITS OWN role's target: left at the pick object, right at the tray.
     # Aiming both at one shared point made the two grippers face each other -- wrong for a
     # handover, and obvious the moment it was rendered.
+    # ⚠️ AIM THE TOOL POINT ALONG THE REAL APPROACH AXIS. This used to score d.xpos[eef] -- the
+    # gripper BODY -- and assume the approach direction was the body's local +z. Both are only
+    # true for Panda. The reBot's grasp centre is 49 mm along local -x, so the search was aiming
+    # the wrong point in the wrong direction, and the poses it returned put the actual pinch
+    # point nowhere near the task volume. The approach axis is not a free choice: it is the
+    # direction from the gripper body to where the fingers close, i.e. the eef_offset itself.
+    off = np.array(r["eef_offset"], dtype=float)
+    assert np.linalg.norm(off) > 1e-6, "eef_offset is zero; run scripts/measure_tcp.py"
+    ax_local = off / np.linalg.norm(off)
     tgt = np.array(L.HOME_TARGET[side]) - np.array(L.robot_mounts(key)[side])
     rng = np.random.default_rng(1)
     best = None
@@ -59,8 +77,9 @@ def main() -> None:
         q = rng.uniform(lo, hi)
         d.qpos[adr] = q
         mujoco.mj_forward(m, d)
-        p = d.xpos[eef]
-        ap = d.xmat[eef].reshape(3, 3)[:, 2]          # local +z = approach
+        R = d.xmat[eef].reshape(3, 3)
+        p = d.xpos[eef] + R @ off                     # the TOOL POINT, not the wrist
+        ap = R @ ax_local                             # measured approach direction
         v = tgt - p
         n = np.linalg.norm(v)
         if n < 1e-6:
@@ -75,9 +94,11 @@ def main() -> None:
             continue
         if (q - lo).min() < LIMIT_MARGIN or (hi - q).min() < LIMIT_MARGIN:
             continue
-        aim = float(ap @ (v / n))
         down = float(ap @ np.array([0, 0, -1.0]))
-        score = aim + 0.6 * down - 2.5 * abs(n - STANDOFF)
+        if down < MIN_DOWN:
+            continue
+        aim = float(ap @ (v / n))
+        score = aim - 2.5 * abs(n - STANDOFF)
         if best is None or score > best[0]:
             best = (score, q.copy(), aim, down, n)
     score, q, aim, down, n = best
