@@ -107,6 +107,11 @@ def add_ros2_control(robot: ET.Element, key: str) -> None:
     # Faster-than-realtime stepping, for data collection and eval sweeps.
     ET.SubElement(hw, "param", {"name": "sim_speed_factor"}).text = "1.0"
     ET.SubElement(hw, "param", {"name": "camera_publish_rate"}).text = f"{L.CAM_RATE_HZ}"
+    # Start-position override: the launch writes this file from its can_x/can_y/can_yaw
+    # arguments before the sim starts. The PATH is fixed here because hardware params cannot be
+    # set from the command line; only the file's contents vary per run.
+    ET.SubElement(hw, "param", {"name": "override_start_position_file"}).text = str(
+        L.start_override_path(key))
     # Without this the sim starts at qpos=0 -- arms bolt upright, which is exactly what the first
     # launch showed. gen_scene.py writes a `home` keyframe holding the searched per-side poses
     # plus the object's placed pose. (mujoco_system_interface.cpp:1353 reads this param.)

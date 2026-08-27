@@ -14,6 +14,9 @@
     ws_max: [0.6500, 0.7000, 1.2000]
     cameras: ["front", "left_wrist", "right_wrist"]
     ft_sensors: ["left_finger_joint1_ft", "left_finger_joint2_ft", "right_finger_joint1_ft", "right_finger_joint2_ft"]
+    ft_rot: [1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, -1.000000, -0.000000, 0.000000, -0.000000, -1.000000, 0.000000, 0.000000, 0.000000, 1.000000, 1.000000, -0.000000, 0.000000, -0.000000, 1.000000, 0.000000, 0.000000, 0.000000, 1.000000, -1.000000, 0.000000, 0.000000, 0.000000, -1.000000, 0.000000, 0.000000, -0.000000, 1.000000]
+    ft_side: ["left", "left", "right", "right"]
+    grip_force: 40.0
     left_eef_frame: left_hand
     left_arm_joints: ["left_joint1", "left_joint2", "left_joint3", "left_joint4", "left_joint5", "left_joint6", "left_joint7"]
     left_home: [-0.55, 0.49, 0.624, -1.8, -0.358, 2.13, 1.018]

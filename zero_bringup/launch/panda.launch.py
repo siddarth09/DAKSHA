@@ -19,14 +19,90 @@ Run:  ros2 launch zero_bringup panda.launch.py
 """
 
 from launch import LaunchDescription
-from launch.actions import OpaqueFunction, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler
 from launch.event_handlers import OnProcessStart
+from launch.substitutions import LaunchConfiguration
 from launch.substitutions import Command, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+from pathlib import Path
 
 CONTROLLERS = ['joint_state_broadcaster', 'left_arm_controller', 'left_gripper_controller', 'right_arm_controller', 'right_gripper_controller', 'left_finger_joint1_ft_broadcaster', 'left_finger_joint2_ft_broadcaster', 'right_finger_joint1_ft_broadcaster', 'right_finger_joint2_ft_broadcaster']
+MJCF = '/home/sid/projects25/src/ZERO/zero_description/mjcf/zero_panda.xml'
+START_OVERRIDE = '/tmp/zero_panda_start.xml'
+CAN_DEFAULT_XY = (0.34, 0.45)
+
+
+def _write_start_override(context):
+    """Write the start-position override from can_x / can_y / can_yaw.
+
+    The can's pose lives in the MJCF's `home` keyframe, which is baked at generation time. Rather
+    than regenerate the model to move it, this reads that keyframe, substitutes the can's
+    free-joint block, and writes a `<key qpos=... ctrl=.../>` file -- the format
+    mujoco_ros2_control's `override_start_position_file` hardware parameter expects. The whole
+    qpos vector is copied from the compiled model, so arms, gripper and tray keep exactly the
+    pose they were solved for and only the can moves.
+
+    Z IS NOT AN ARGUMENT on purpose: the can's resting height is a function of its geometry (base
+    on the table), and letting it be set by hand invites a can floating or half-buried. It is
+    taken from the keyframe.
+    """
+    import mujoco
+    import numpy as np
+
+    x = float(LaunchConfiguration("can_x").perform(context))
+    y = float(LaunchConfiguration("can_y").perform(context))
+    yaw = float(LaunchConfiguration("can_yaw").perform(context))
+
+    m = mujoco.MjModel.from_xml_path(MJCF)
+    kid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "home")
+    if kid < 0:
+        raise RuntimeError(f"no 'home' keyframe in {MJCF}")
+    qpos = np.array(m.key_qpos[kid], dtype=float)
+    ctrl = np.array(m.key_ctrl[kid], dtype=float)
+
+    bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "obj_root")
+    jid = next((j for j in range(m.njnt)
+                if m.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE and m.jnt_bodyid[j] == bid), -1)
+    if jid < 0:
+        raise RuntimeError("obj_root has no free joint -- cannot move the can")
+    adr = m.jnt_qposadr[jid]
+
+    # Reject silently-wrong placements rather than let the can spawn off the table, where the
+    # episode is unrecordable and the cause is invisible from the images.
+    tg = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "table_top")
+    cx, cy = m.geom_pos[tg][0], m.geom_pos[tg][1]
+    hx, hy = m.geom_size[tg][0], m.geom_size[tg][1]
+    if not (cx - hx <= x <= cx + hx and cy - hy <= y <= cy + hy):
+        raise RuntimeError(
+            f"can_x={x} can_y={y} is off the table "
+            f"(x in [{cx - hx:.3f}, {cx + hx:.3f}], y in [{cy - hy:.3f}, {cy + hy:.3f}])")
+
+    qpos[adr + 0] = x
+    qpos[adr + 1] = y
+    qpos[adr + 3] = np.cos(yaw / 2.0)      # quat w
+    qpos[adr + 4] = 0.0
+    qpos[adr + 5] = 0.0
+    qpos[adr + 6] = np.sin(yaw / 2.0)      # quat z
+
+    out = Path(START_OVERRIDE)
+    # chr(10)/chr(34) instead of escape sequences, and every brace doubled: this text is a
+    # .format() template that becomes a Python file, so a backslash escape survives one round of
+    # interpretation fewer than it looks like it should, and a single brace is read as a format
+    # placeholder (which failed loudly with KeyError: v, and silently left the old file behind).
+    nl = chr(10)
+    q = chr(34)
+    body = [
+        "<key",
+        "  qpos=" + q + " ".join(f"{v:.6f}" for v in qpos) + q,
+        "  qvel=" + q + " ".join("0" for _ in range(m.nv)) + q,
+        "  ctrl=" + q + " ".join(f"{v:.6f}" for v in ctrl) + q,
+        "/>",
+    ]
+    out.write_text(nl.join(body) + nl)
+    print(f"[zero] can at x={x:.3f} y={y:.3f} yaw={yaw:.3f} -> {out}")
+    return []
 
 
 def _preflight(context):
@@ -86,7 +162,15 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[control_params],
     )
     return LaunchDescription([
+        DeclareLaunchArgument("can_x", default_value=str(CAN_DEFAULT_XY[0]),
+                             description="can position along x, metres, table frame"),
+        DeclareLaunchArgument("can_y", default_value=str(CAN_DEFAULT_XY[1]),
+                             description="can position along y, metres, table frame"),
+        DeclareLaunchArgument("can_yaw", default_value="0.0",
+                             description="can yaw, radians"),
         OpaqueFunction(function=_preflight),
+        # Must run BEFORE the sim: the override file is read once, at hardware init.
+        OpaqueFunction(function=_write_start_override),
         rsp, ctrl,
         RegisterEventHandler(OnProcessStart(target_action=ctrl, on_start=spawners + [eef])),
     ])

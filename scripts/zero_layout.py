@@ -373,6 +373,23 @@ def robot_prefixed_ros2_joints(key: str) -> list[str]:
     return [prefixed(s, j) for s in SIDES for j in ROBOTS[key]["ros2_control_joints"]]
 
 
+def start_override_path(key: str) -> Path:
+    """Where the launch writes the start-position override for `key`.
+
+    mujoco_ros2_control reads the can's start pose from a file named by the
+    `override_start_position_file` HARDWARE parameter, which lives in the URDF -- so the path has
+    to be fixed at generation time while its CONTENTS are written per launch from `can_x`/`can_y`/
+    `can_yaw`. Under /tmp because the launch writes it on every run and an install tree should
+    stay read-only.
+
+    Why a file and not a service: the installed mujoco_ros2_control exposes only reset_world,
+    set_pause and step_simulation. `SetFreeJointState` exists in the upstream source and would let
+    the can be moved while running (which is what per-episode randomisation would need), but it is
+    not in this build.
+    """
+    return Path(f"/tmp/zero_{key}_start.xml")
+
+
 def ft_sensors(key: str) -> list[tuple[str, str]]:
     """(ros2_control sensor name, MJCF body it measures) for every fingertip force/torque pair.
 

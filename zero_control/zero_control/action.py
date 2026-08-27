@@ -90,3 +90,35 @@ def unpack(vec: np.ndarray) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]],
         poses[side] = (vec[s:s + 3].copy(), rot_from_6d(vec[s + 3:s + 9]))
         grips[side] = float(vec[s + 9])
     return poses, grips
+
+
+def to_relative(state: "np.ndarray", action: "np.ndarray") -> "np.ndarray":
+    """Express an absolute action RELATIVE to the hand's current pose -- UMI's representation.
+
+        rel = to_relative(sample["observation.state"], sample["action"])
+
+    Same 20-dim layout as `action`: per hand pos(3) + rot6d(6) + grip(1). The gripper value is
+    already an opening fraction and is passed through unchanged; only the pose becomes relative.
+
+    WHY IT IS DERIVED AND NOT RECORDED. It is an exact function of two things the dataset already
+    stores, so recording it would be redundant -- and adding a column changes the dataset schema,
+    which stops the recorder appending to episodes captured before the change. Derive at training
+    time and the choice of representation stays open.
+
+    WHY THE TOOL FRAME. The delta is rotated into the CURRENT hand frame (`R^T (p_cmd - p_meas)`)
+    rather than left in the world. A world-frame delta still carries the table's orientation, so
+    an arm mounted at a different angle -- or a humanoid whose base moves, which is where this is
+    going -- would read the same physical motion as different numbers. Nothing in the tool-frame
+    form refers to a frame the two embodiments must agree on, which is the property that makes it
+    portable (UMI, arXiv 2402.10329).
+    """
+    import numpy as np
+
+    poses_m, _ = unpack(np.asarray(state, dtype=float))
+    poses_c, grips = unpack(np.asarray(action, dtype=float))
+    out = {}
+    for side in SIDES:
+        p_m, R_m = poses_m[side]
+        p_c, R_c = poses_c[side]
+        out[side] = (R_m.T @ (p_c - p_m), R_m.T @ R_c)
+    return pack(out, grips)

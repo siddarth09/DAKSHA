@@ -47,7 +47,7 @@ from rclpy.node import Node
 from sensor_msgs.msg import JointState
 from std_msgs.msg import Float64MultiArray
 
-from zero_control.action import DIM, SIDES, unpack
+from zero_control.action import DIM, SIDES, pack, unpack
 from zero_control.ik import ArmIK
 
 
@@ -108,12 +108,19 @@ class EefControlNode(Node):
         self.grip_lo, self.grip_hi = tuple(self.get_parameter("grip_range").value)
 
         self.q = np.zeros(self.ik["left"].model.nq)   # full-model config, kept in sync
+        self.q_meas = np.zeros(self.ik["left"].model.nq)  # PURE measurement, for /zero/eef_state
         self.have_js = False
         self.target: np.ndarray | None = None
 
         self.create_subscription(JointState, "/joint_states", self._on_js, 10)
         self.create_subscription(Float64MultiArray, "/zero/eef_target", self._on_target, 10)
         self.status_pub = self.create_publisher(Float64MultiArray, "/zero/ik_status", 10)
+        # The MEASURED 20-dim observation, for consumers that must not duplicate the kinematics.
+        # policy_node needs this: it runs under lerobot_env, whose numpy 2.x cannot load ROS's
+        # pinocchio (built against numpy 1.x), so it cannot do its own FK. Publishing it here
+        # also keeps this node the single source of FK truth, rather than a second
+        # implementation that could drift from the one the dataset was recorded with.
+        self.state_pub = self.create_publisher(Float64MultiArray, "/zero/eef_state", 10)
 
         hz = float(self.get_parameter("rate_hz").value)
         self.timer = self.create_timer(1.0 / hz, self._tick)
@@ -133,7 +140,9 @@ class EefControlNode(Node):
             jid = model.getJointId(name)
             if jid < model.njoints:
                 self.q[model.joints[jid].idx_q] = pos
+                self.q_meas[model.joints[jid].idx_q] = pos
         self.have_js = True
+        self._publish_state()
 
     def _on_target(self, msg: Float64MultiArray) -> None:
         if len(msg.data) != DIM:
@@ -163,6 +172,20 @@ class EefControlNode(Node):
             self._publish_grip(side, grips[side])
             status += [res.pos_err, res.rot_err, float(res.clamped)]
         self.status_pub.publish(Float64MultiArray(data=status))
+
+    def _publish_state(self) -> None:
+        """Publish the measured 20-dim observation, identical to record_node._measured_state.
+
+        Poses are FK on the MEASURED joints (self.q_meas, not self.q -- the latter carries the
+        servo's own IK result). Grip channels are the LAST COMMANDED grip, not a sensor, because
+        that is what the recorder stored and therefore what a policy trained against.
+        """
+        fk = {s: self.ik[s].fk(self.q_meas) for s in SIDES}      # once per side, at 100 Hz
+        poses = {s: (fk[s].translation, fk[s].rotation) for s in SIDES}
+        grips = {s: (float(self.target[9 if s == "left" else 19])
+                     if self.target is not None else 0.0) for s in SIDES}
+        self.state_pub.publish(Float64MultiArray(
+            data=[float(v) for v in pack(poses, grips)]))
 
     def _publish_arm(self, side: str, q_arm: np.ndarray) -> None:
         self.arm_pub[side].publish(Float64MultiArray(data=[float(v) for v in q_arm]))

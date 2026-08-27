@@ -24,6 +24,7 @@ setup(
             "joy_probe = zero_control.joy_probe:main",
             "rerun_viewer = zero_control.rerun_viewer:main",
             "record = zero_control.record_node:main",
+            "policy = zero_control.policy_node:main",
         ],
     },
 )

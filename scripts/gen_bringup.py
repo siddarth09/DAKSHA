@@ -99,14 +99,90 @@ Run:  ros2 launch zero_bringup {key}.launch.py
 """
 
 from launch import LaunchDescription
-from launch.actions import OpaqueFunction, RegisterEventHandler
+from launch.actions import DeclareLaunchArgument, OpaqueFunction, RegisterEventHandler
 from launch.event_handlers import OnProcessStart
+from launch.substitutions import LaunchConfiguration
 from launch.substitutions import Command, PathJoinSubstitution
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 from launch_ros.substitutions import FindPackageShare
+from pathlib import Path
 
 CONTROLLERS = {controllers!r}
+MJCF = {mjcf!r}
+START_OVERRIDE = {start_override!r}
+CAN_DEFAULT_XY = ({can_x!r}, {can_y!r})
+
+
+def _write_start_override(context):
+    """Write the start-position override from can_x / can_y / can_yaw.
+
+    The can's pose lives in the MJCF's `home` keyframe, which is baked at generation time. Rather
+    than regenerate the model to move it, this reads that keyframe, substitutes the can's
+    free-joint block, and writes a `<key qpos=... ctrl=.../>` file -- the format
+    mujoco_ros2_control's `override_start_position_file` hardware parameter expects. The whole
+    qpos vector is copied from the compiled model, so arms, gripper and tray keep exactly the
+    pose they were solved for and only the can moves.
+
+    Z IS NOT AN ARGUMENT on purpose: the can's resting height is a function of its geometry (base
+    on the table), and letting it be set by hand invites a can floating or half-buried. It is
+    taken from the keyframe.
+    """
+    import mujoco
+    import numpy as np
+
+    x = float(LaunchConfiguration("can_x").perform(context))
+    y = float(LaunchConfiguration("can_y").perform(context))
+    yaw = float(LaunchConfiguration("can_yaw").perform(context))
+
+    m = mujoco.MjModel.from_xml_path(MJCF)
+    kid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_KEY, "home")
+    if kid < 0:
+        raise RuntimeError(f"no 'home' keyframe in {{MJCF}}")
+    qpos = np.array(m.key_qpos[kid], dtype=float)
+    ctrl = np.array(m.key_ctrl[kid], dtype=float)
+
+    bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, "obj_root")
+    jid = next((j for j in range(m.njnt)
+                if m.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE and m.jnt_bodyid[j] == bid), -1)
+    if jid < 0:
+        raise RuntimeError("obj_root has no free joint -- cannot move the can")
+    adr = m.jnt_qposadr[jid]
+
+    # Reject silently-wrong placements rather than let the can spawn off the table, where the
+    # episode is unrecordable and the cause is invisible from the images.
+    tg = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_GEOM, "table_top")
+    cx, cy = m.geom_pos[tg][0], m.geom_pos[tg][1]
+    hx, hy = m.geom_size[tg][0], m.geom_size[tg][1]
+    if not (cx - hx <= x <= cx + hx and cy - hy <= y <= cy + hy):
+        raise RuntimeError(
+            f"can_x={{x}} can_y={{y}} is off the table "
+            f"(x in [{{cx - hx:.3f}}, {{cx + hx:.3f}}], y in [{{cy - hy:.3f}}, {{cy + hy:.3f}}])")
+
+    qpos[adr + 0] = x
+    qpos[adr + 1] = y
+    qpos[adr + 3] = np.cos(yaw / 2.0)      # quat w
+    qpos[adr + 4] = 0.0
+    qpos[adr + 5] = 0.0
+    qpos[adr + 6] = np.sin(yaw / 2.0)      # quat z
+
+    out = Path(START_OVERRIDE)
+    # chr(10)/chr(34) instead of escape sequences, and every brace doubled: this text is a
+    # .format() template that becomes a Python file, so a backslash escape survives one round of
+    # interpretation fewer than it looks like it should, and a single brace is read as a format
+    # placeholder (which failed loudly with KeyError: v, and silently left the old file behind).
+    nl = chr(10)
+    q = chr(34)
+    body = [
+        "<key",
+        "  qpos=" + q + " ".join(f"{{v:.6f}}" for v in qpos) + q,
+        "  qvel=" + q + " ".join("0" for _ in range(m.nv)) + q,
+        "  ctrl=" + q + " ".join(f"{{v:.6f}}" for v in ctrl) + q,
+        "/>",
+    ]
+    out.write_text(nl.join(body) + nl)
+    print(f"[zero] can at x={{x:.3f}} y={{y:.3f}} yaw={{yaw:.3f}} -> {{out}}")
+    return []
 
 
 def _preflight(context):
@@ -166,7 +242,15 @@ def generate_launch_description() -> LaunchDescription:
         parameters=[control_params],
     )
     return LaunchDescription([
+        DeclareLaunchArgument("can_x", default_value=str(CAN_DEFAULT_XY[0]),
+                             description="can position along x, metres, table frame"),
+        DeclareLaunchArgument("can_y", default_value=str(CAN_DEFAULT_XY[1]),
+                             description="can position along y, metres, table frame"),
+        DeclareLaunchArgument("can_yaw", default_value="0.0",
+                             description="can yaw, radians"),
         OpaqueFunction(function=_preflight),
+        # Must run BEFORE the sim: the override file is read once, at hardware init.
+        OpaqueFunction(function=_write_start_override),
         rsp, ctrl,
         RegisterEventHandler(OnProcessStart(target_action=ctrl, on_start=spawners + [eef])),
     ])
@@ -313,6 +397,30 @@ def control_yaml(key: str) -> str:
     lines.append("    ft_sensors: ["
                  + ", ".join(f'"{n}"' for n, _ in L.ft_sensors(key)) + "]")
 
+    # ── FORCE IN THE TOOL FRAME, which is what makes force usable as a POLICY input.
+    # Each fingertip sensor reports its wrench in its own site frame, and those frames differ
+    # between the two robots -- measured, the reBot's finger frames are rotated 90 deg from its
+    # tool frame while Panda's first finger is identity. So the raw per-finger vector is NOT the
+    # same physical measurement on both arms and cannot be fed to a shared policy. Rotating each
+    # wrench into the TOOL frame and summing per hand gives one quantity, one frame, one set of
+    # units, on both robots.
+    # The rotation is CONSTANT (every gripper joint is prismatic, so fingers translate and never
+    # rotate -- verified 0.00e+00 change between fully open and fully closed), so it is measured
+    # once here rather than recomputed every frame.
+    import numpy as _np
+    rots, sides = [], []
+    for sensor_name, _ in L.ft_sensors(key):
+        side = "left" if sensor_name.startswith("left") else "right"
+        eb = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, L.prefixed(side, r["eef_body"]))
+        sid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_SITE, f"{sensor_name}_site")
+        assert eb >= 0 and sid >= 0, f"missing body/site for {sensor_name}"
+        R = d.xmat[eb].reshape(3, 3).T @ d.site_xmat[sid].reshape(3, 3)
+        rots += [float(v) for v in _np.asarray(R).reshape(-1)]
+        sides.append(side)
+    lines.append("    ft_rot: [" + ", ".join(f"{v:.6f}" for v in rots) + "]")
+    lines.append("    ft_side: [" + ", ".join(f'"{s}"' for s in sides) + "]")
+    lines.append(f"    grip_force: {r['grip_force']}")
+
     for side in L.SIDES:
         lines.append(f"    {side}_eef_frame: {r['urdf_eef_frame'].format(side=side)}")
         js = ", ".join(f'"{L.prefixed(side, j)}"' for j in r["arm_joints"])
@@ -348,7 +456,10 @@ def main() -> None:
     lp = BRINGUP / "launch" / f"{key}.launch.py"
     lp.write_text(LAUNCH.format(key=key, controllers=["joint_state_broadcaster"] + names,
                                 ncam=len(L.all_cameras()), cams=", ".join(L.all_cameras()),
-                                ns=L.CAM_NS))
+                                ns=L.CAM_NS,
+                                mjcf=str(L.PKG / "mjcf" / f"zero_{key}.xml"),
+                                start_override=str(L.start_override_path(key)),
+                                can_x=L.PICK_POS[0], can_y=L.PICK_POS[1]))
     print(f"[{key}] wrote {ycfg.name} ({len(names)} controllers) + {ccfg.name} + {lp.name}"
           f" + {tlp.name}")
     print(f"  controllers: {names}")

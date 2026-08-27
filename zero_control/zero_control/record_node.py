@@ -5,18 +5,43 @@
         -p root:=/home/sid/zero_data/rebot_pick_place \
         -p task:="pick up the can and place it in the tray"
 
-    BACK  start / stop an episode        B  discard the episode in progress
+EPISODE CONTROL, from the gamepad OR the keyboard -- whichever hand is free:
+
+    gamepad   X     start / stop an episode          B      discard and re-record
+    keyboard  SPACE start an episode                 RIGHT  end it and save
+                                                     LEFT   discard and re-record
+                                                     ESC    stop recording and exit
+
+The keyboard bindings are lerobot's (`utils/control_utils.py`: right = exit early, left =
+re-record, escape = stop), so muscle memory carries over from `lerobot_record`. SPACE is the one
+addition: lerobot starts the next episode automatically after its fixed reset window, whereas
+episodes here are started by hand so a scene reset can take as long as it takes.
 
 WHAT THE POLICY SEES vs WHAT IS STORED -- the distinction this whole dataset turns on:
 
     observation.state   20-dim: per hand pos(3) + rot6d(6) + grip(1), MEASURED via FK
+    observation.force   14-dim: per hand a 6-D grasp wrench IN THE TOOL FRAME + a squeeze magnitude
+                        normalised by that robot's own force cap. The F in VLFA.
     action              the same 20-dim, COMMANDED (what the operator asked for)
+    (UMI's relative-trajectory form is NOT stored: it is exactly derivable from `action` plus
+     `observation.state` via zero_control.action.to_relative, so recording it would be redundant
+     AND would change the schema, which stops the recorder appending to existing datasets.)
     observation.images  front + both wrists
+    task                the language instruction -- the L in VLFA
 
 Those are embodiment-invariant, and they are the only keys a transferable policy may read. Joint
 angles must NOT be among them: the reBot has 6 per arm and Panda 7, so a policy trained on one
 cannot even be fed the other -- the vector length differs. This is why Mirage drives its transfer
 through Cartesian control rather than joint control.
+
+WHY THE FORCE INPUT IS RESOLVED AND NOT RAW. Each fingertip sensor reports its wrench in its own
+site frame, and those frames are not alike across robots -- measured, the reBot's finger frames sit
+90 deg from its tool frame while Panda's first finger is identity. Feeding the raw 24-dim
+per-finger vector to a shared policy would feed it two different physical quantities and call them
+the same feature. Summing per hand in the TOOL frame gives one quantity, one frame, one set of
+units on both arms, and normalising the magnitude by each robot's own grip-force cap (reBot 15 N,
+Panda 40 N) makes "how hard am I squeezing" comparable rather than absolute. The rotations are
+constant because every gripper joint is prismatic, so they are measured once at generation time.
 
 Everything else is stored for repair and analysis, NOT for the policy:
 
@@ -68,9 +93,16 @@ class Recorder(Node):
         self.declare_parameter("depth", True)
         self.declare_parameter("cameras", ["front", "left_wrist", "right_wrist"])
         self.declare_parameter("ft_sensors", [""])
+        self.declare_parameter("ft_rot", [0.0])       # 9 per sensor, sensor frame -> tool frame
+        self.declare_parameter("ft_side", [""])       # which hand each sensor belongs to
+        self.declare_parameter("grip_force", 1.0)     # N, for normalising the magnitude
         self.declare_parameter("eef_offset", [0.0, 0.0, 0.0])
-        self.declare_parameter("btn_toggle", 6)     # BACK
-        self.declare_parameter("btn_discard", 1)    # B
+        self.declare_parameter("play_sounds", True)  # spoken episode prompts, as lerobot does
+        self.declare_parameter("keyboard", True)     # also accept lerobot's key bindings
+        # X, not BACK: reachable with a thumb without letting go of a stick. Free because teleop
+        # already uses A (home), Y (grip), LB/RB (dead-man) and START (reseed).
+        self.declare_parameter("btn_toggle", 2)      # X
+        self.declare_parameter("btn_discard", 1)     # B
         for side in SIDES:
             self.declare_parameter(f"{side}_arm_joints", [""])
             self.declare_parameter(f"{side}_eef_frame", "")
@@ -85,6 +117,19 @@ class Recorder(Node):
         self.cams = list(self.get_parameter("cameras").value)
         self.fts = [s for s in self.get_parameter("ft_sensors").value if s]
         self.use_depth = bool(self.get_parameter("depth").value)
+
+        rot = np.asarray(self.get_parameter("ft_rot").value, dtype=float)
+        self.ft_side = [x for x in self.get_parameter("ft_side").value if x]
+        self.grip_force = max(float(self.get_parameter("grip_force").value), 1e-6)
+        if self.fts:
+            if rot.size != 9 * len(self.fts) or len(self.ft_side) != len(self.fts):
+                raise SystemExit(
+                    f"ft_rot/ft_side do not match {len(self.fts)} sensors "
+                    f"({rot.size} rotation values, {len(self.ft_side)} sides) -- regenerate "
+                    f"the control yaml with scripts/gen_bringup.py")
+            self.ft_rot = rot.reshape(len(self.fts), 3, 3)
+        else:
+            self.ft_rot = np.zeros((0, 3, 3))
 
         urdf = str(Path(get_package_share_directory("zero_description"))
                    / "urdf" / f"zero_{self.key}.urdf")
@@ -112,6 +157,15 @@ class Recorder(Node):
         self.recording = False
         self.n_frames = 0
         self.n_episodes = 0
+        self.play_sounds = bool(self.get_parameter("play_sounds").value)
+        self._log_say = None
+        # Set by the keyboard listener thread, consumed by the timer. Plain bools written from one
+        # thread and read from another need no lock here: each is a single latched edge, and losing
+        # a race would at worst delay a keypress by one 10 Hz tick.
+        self._kb = {"start": False, "save": False, "discard": False, "stop": False}
+        self._listener = None
+        if bool(self.get_parameter("keyboard").value):
+            self._start_keyboard()
 
         for c in self.cams:
             self.create_subscription(Image, f"/zero/{c}/image_raw",
@@ -132,7 +186,9 @@ class Recorder(Node):
             f"{len(self.fts)} F/T, depth={'on' if self.use_depth else 'off'}\n"
             f"  dataset root: {self.root}\n"
             f"  task: {self.task!r}\n"
-            "  BACK = start/stop episode, B = discard")
+            "  gamepad: X = start/stop episode, B = discard\n"
+            "  keyboard: SPACE = start, RIGHT = save, LEFT = discard, ESC = stop")
+        self._say("Recorder ready")
 
     # ---------------------------------------------------------------- callbacks
     def _on_rgb(self, msg: Image, cam: str) -> None:
@@ -184,11 +240,86 @@ class Recorder(Node):
         was = self.prev_buttons[idx] if idx < len(self.prev_buttons) else 0
         return bool(self.joy.buttons[idx]) and not was
 
+    # ---------------------------------------------------------------- keyboard
+    def _start_keyboard(self) -> None:
+        """lerobot's key bindings, on a background listener.
+
+        pynput needs a graphical session, so this degrades to gamepad-only rather than failing --
+        the same fallback lerobot makes. Note it grabs keys GLOBALLY, not just when this terminal
+        has focus, which is what makes it usable while you are watching the sim window.
+        """
+        try:
+            from pynput import keyboard
+        except Exception as exc:
+            self.get_logger().warn(
+                f"keyboard control unavailable ({exc}); gamepad only")
+            return
+
+        def on_press(key):
+            try:
+                if key == keyboard.Key.space:
+                    self._kb["start"] = True
+                elif key == keyboard.Key.right:
+                    self._kb["save"] = True
+                elif key == keyboard.Key.left:
+                    self._kb["discard"] = True
+                elif key == keyboard.Key.esc:
+                    self._kb["stop"] = True
+            except Exception as exc:                       # never let the listener thread die
+                self.get_logger().warn(f"key handling failed: {exc}")
+
+        try:
+            self._listener = keyboard.Listener(on_press=on_press)
+            self._listener.start()
+            self.get_logger().info(
+                "keyboard: SPACE start, RIGHT save, LEFT discard, ESC stop")
+        except Exception as exc:
+            self.get_logger().warn(f"could not start keyboard listener ({exc}); gamepad only")
+
+    # ---------------------------------------------------------------- spoken prompts
+    def _say(self, text: str) -> None:
+        """Speak an episode prompt, the way lerobot_record does.
+
+        Teleoperating means both hands on the pad and eyes on the sim, so a terminal line is the
+        one place the operator is guaranteed not to be looking. lerobot's own `log_say` is reused
+        rather than reimplemented, so phrasing and behaviour stay consistent with their tooling.
+
+        ⚠️ NON-BLOCKING, deliberately. This runs inside the 10 Hz recording timer; a blocking
+        `spd-say --wait` would stall the callback for the length of the utterance and drop frames
+        from the episode it is announcing.
+        """
+        self.get_logger().info(text)
+        if not self.play_sounds:
+            return
+        if self._log_say is None:
+            try:
+                from lerobot.utils.utils import log_say
+                self._log_say = log_say
+            except Exception:                     # lerobot is only needed for the dataset itself
+                import subprocess
+
+                def _fallback(t, play_sounds=True, blocking=False):
+                    subprocess.Popen(["spd-say", t],
+                                     stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+                self._log_say = _fallback
+                self.get_logger().warn("lerobot log_say unavailable; using spd-say directly")
+        try:
+            self._log_say(text, play_sounds=True, blocking=False)
+        except Exception as exc:
+            self.get_logger().warn(f"speech failed ({exc}); continuing silently")
+            self.play_sounds = False
+
     # ---------------------------------------------------------------- dataset
     def _features(self) -> dict:
         n_joint = len(self.joint_pos)
         feats: dict = {
             "observation.state": {"dtype": "float32", "shape": (DIM,), "names": None},
+            # POLICY-VISIBLE force: the F in VLFA. 7 per hand -- wrench(6) + normalised magnitude.
+            "observation.force": {
+                "dtype": "float32", "shape": (14,),
+                "names": [f"{s}.{a}" for s in SIDES
+                          for a in ("net_fx", "net_fy", "net_fz",
+                                    "net_tx", "net_ty", "net_tz", "squeeze")]},
             "action": {"dtype": "float32", "shape": (DIM,), "names": None},
             "observation.joint_pos": {"dtype": "float32", "shape": (n_joint,),
                                       "names": self.joint_names},
@@ -209,27 +340,163 @@ class Recorder(Node):
                                                   "names": ["height", "width"]}
         return feats
 
-    def _ensure_dataset(self) -> None:
-        if self.ds is not None:
-            return
-        from lerobot.datasets.lerobot_dataset import LeRobotDataset
-        self.ds = LeRobotDataset.create(
-            repo_id=f"zero/{self.key}", fps=int(self.fps), features=self._features(),
-            root=self.root, robot_type=self.key,
-            # Images go through worker threads; the control loop must not block on PNG/video
-            # encoding or the dataset silently drops to whatever rate the writer can sustain.
-            image_writer_processes=0, image_writer_threads=2 * len(self.cams))
-        self.get_logger().info(f"created dataset at {self.root}")
+    def _ensure_dataset(self) -> bool:
+        """Create the dataset, or RESUME an existing one at the same root.
 
-    def _measured_state(self) -> np.ndarray:
-        """MEASURED end-effector pose, by FK from the joints -- not the commanded target."""
-        poses, grips = {}, {}
+        Resuming matters more than it sounds: `LeRobotDataset.create` raises FileExistsError on an
+        existing root, so without this, restarting the recorder -- after a crash, a break, or a
+        deliberate stop -- could only ever start a fresh directory. A 30-episode session had to be
+        one unbroken process.
+
+        ⚠️ VALIDATE BEFORE LOADING, and `meta/info.json` is NOT enough. LeRobotDataset only
+        writes `meta/episodes/*.parquet` when the writers are closed, so a session that was killed
+        leaves `info.json` claiming N episodes with no episode index at all. Handing that to
+        LeRobotDataset does not fail locally -- it treats the missing metadata as "not downloaded
+        yet" and goes to the Hugging Face Hub, which 404s for a dataset that exists only on disk.
+        The traceback then points at huggingface_hub and hides the real problem, which is a
+        half-written directory. Checking for the episode index up front turns that into one
+        sentence. (An earlier note here blamed the 404 on a missing HF_HUB_OFFLINE; that was
+        wrong. The hub is only consulted when the LOCAL metadata is incomplete.)
+
+        The feature sets are compared before appending. The schema here has changed repeatedly
+        (force promoted into the observation, depth added, joint velocities added), and appending
+        frames whose keys disagree with the existing episodes would produce one dataset that is
+        quietly two incompatible halves.
+        """
+        if self.ds is not None:
+            return True
+        import os
+
+        os.environ.setdefault("HF_HUB_OFFLINE", "1")   # belt and braces; not the actual fix
+        from lerobot.datasets.lerobot_dataset import LeRobotDataset
+
+        want = self._features()
+        threads = 2 * len(self.cams)
+        info = self.root / "meta" / "info.json"
+        episodes_idx = sorted((self.root / "meta" / "episodes").glob("**/*.parquet"))
+        if info.exists() and not episodes_idx:
+            # LOG, do not raise. This runs inside a timer callback, so a SystemExit propagates out
+            # of rclpy.spin and lands in main's `except SystemExit` -- which exists for the ESC
+            # path and swallows the message. The recorder then died with nothing after
+            # "Recorder ready", which is worse than the hub traceback it replaced.
+            self.get_logger().error(
+                f"\n{self.root} was created but never finalised: meta/info.json is there but "
+                f"meta/episodes/ has no parquet, so the episode index is missing and the dataset "
+                f"cannot be opened.\nThis is what a killed recorder leaves behind.\n"
+                f"  Its frame data may still be readable -- check with:\n"
+                f"    python3 -c \"import glob,pyarrow.parquet as pq; "
+                f"[print(f, pq.read_table(f).num_rows) for f in "
+                f"glob.glob('{self.root}/data/**/*.parquet', recursive=True)]\"\n"
+                f"  To carry on recording, move it aside and use a fresh root:\n"
+                f"    mv {self.root} {self.root}.broken\n")
+            self._say("Dataset is broken. Not recording")
+            return False
+        if info.exists():
+            self.ds = LeRobotDataset(repo_id=f"zero/{self.key}", root=self.root)
+            have = set(self.ds.meta.features)
+            missing = set(want) - have
+            extra = {k for k in have - set(want)
+                     if k not in ("timestamp", "frame_index", "episode_index", "index",
+                                  "task_index")}
+            if missing or extra:
+                self.get_logger().error(
+                    f"cannot resume {self.root}: its schema does not match what this recorder "
+                    f"would write.\n  missing from the dataset: {sorted(missing)}\n"
+                    f"  present but not recorded now: {sorted(extra)}\n"
+                    f"Record into a new root instead of mixing two schemas.")
+                self.ds = None
+                self._say("Schema mismatch. Not recording")
+                return False
+            if hasattr(self.ds, "start_image_writer") and self.cams:
+                self.ds.start_image_writer(num_processes=0, num_threads=threads)
+            self.n_episodes = int(self.ds.meta.total_episodes)
+            self.get_logger().info(
+                f"RESUMING dataset at {self.root}: {self.n_episodes} episodes already recorded")
+            self._say(f"Resuming. {self.n_episodes} episodes on disk")
+        else:
+            self.ds = LeRobotDataset.create(
+                repo_id=f"zero/{self.key}", fps=int(self.fps), features=want,
+                root=self.root, robot_type=self.key,
+                # Images go through worker threads; the control loop must not block on PNG/video
+                # encoding or the dataset silently drops to the writer's rate.
+                image_writer_processes=0, image_writer_threads=threads)
+            self.get_logger().info(f"created dataset at {self.root}")
+        return True
+
+    def _tool_frame_force(self) -> np.ndarray:
+        """Per hand: net 6-D wrench in the TOOL frame, plus a normalised squeeze magnitude.
+
+        TWO DIFFERENT PHYSICAL QUANTITIES, and conflating them is a mistake I made first time:
+
+          net wrench = SUM of the finger wrenches. The external load -- the object's weight, or
+              the gripper pressing on something. On a symmetric pinch it is near ZERO, because the
+              two pads push against each other and cancel.
+          squeeze    = MEAN of the per-finger force magnitudes. Grip strength, which is precisely
+              what the sum destroys. Gripping the can measures 15.6 N and 14.5 N on the two pads:
+              the sum is ~1 N, the squeeze is ~15 N. Reporting only the sum made this read 0.098
+              during a firm grasp.
+
+        Both are wanted, so both are reported. Sum and mean are each defined for any number of
+        fingers, so a two-finger jaw and a three-finger hand present the same feature -- the
+        property the G1's Dex3 will need. Normalising the squeeze by this robot's own grip-force
+        cap (reBot 15 N, Panda 40 N) makes it comparable across embodiments rather than absolute.
+        """
+        out = []
         for side in SIDES:
-            T = self.ik[side].fk(self.q)
-            poses[side] = (T.translation, T.rotation)
-            # gripper opening, normalised, read from the measured joints
-            grips[side] = float(self.action[9 if side == "left" else 19])
+            w = np.zeros(6)
+            mags = []
+            for i, sensor in enumerate(self.fts):
+                if self.ft_side[i] != side:
+                    continue
+                R = self.ft_rot[i]
+                v = self.ft[sensor]
+                f = R @ v[:3]
+                w[:3] += f
+                w[3:] += R @ v[3:]
+                mags.append(float(np.linalg.norm(f)))
+            squeeze = (sum(mags) / len(mags) / self.grip_force) if mags else 0.0
+            out.append(np.concatenate([w, [squeeze]]))
+        return np.concatenate(out).astype(np.float32)
+
+    def _measured_poses(self) -> dict:
+        """MEASURED end-effector pose per hand, by FK from the joints -- not the commanded target."""
+        return {side: (self.ik[side].fk(self.q).translation,
+                       self.ik[side].fk(self.q).rotation) for side in SIDES}
+
+    def _measured_state(self, poses: dict) -> np.ndarray:
+        grips = {s: float(self.action[9 if s == "left" else 19]) for s in SIDES}
         return pack(poses, grips).astype(np.float32)
+
+    def finalize(self) -> None:
+        """Close the parquet writers. WITHOUT THIS THE DATASET IS UNREADABLE.
+
+        LeRobotDataset buffers frames into a parquet writer that only stamps the file footer when
+        it is closed, and `finalize()` is what closes it. Skip it and you get a plausible-looking
+        directory -- correct `meta/info.json`, correct episode and frame counts, a 33 MB data file
+        -- that pyarrow refuses to open with "Parquet magic bytes not found in footer". The frames
+        are simply gone. It happened here: a 2-episode, 97-frame take was lost that way.
+
+        Note lerobot_record.py does not call this either; it gets away with it because
+        `push_to_hub` closes the writers on the way out. Recording locally, nothing does, so this
+        has to be explicit.
+
+        Images are flushed first: the writer threads may still be encoding when the parquet
+        closes.
+        """
+        if self.ds is None:
+            return
+        try:
+            self.ds.stop_image_writer()
+        except Exception as exc:
+            self.get_logger().warn(f"stop_image_writer: {exc}")
+        try:
+            self.ds.finalize()
+            self.get_logger().info(
+                f"dataset finalised: {self.n_episodes} episodes at {self.root} -- safe to exit")
+            self._say("Dataset saved")
+        except Exception as exc:
+            self.get_logger().error(f"FINALIZE FAILED ({exc}) -- the parquet has no footer and "
+                                    f"the episodes are not readable")
 
     # ---------------------------------------------------------------- loop
     def _tick(self) -> None:
@@ -243,6 +510,26 @@ class Recorder(Node):
                 self._stop(save=False)
             self.prev_buttons = list(self.joy.buttons)
 
+        if self._kb["stop"]:
+            self._kb["stop"] = False
+            if self.recording:
+                self._stop(save=True)
+            self._say("Stop recording")
+            self.finalize()
+            raise SystemExit(0)
+        if self._kb["discard"]:
+            self._kb["discard"] = False
+            if self.recording:
+                self._stop(save=False)
+        if self._kb["save"]:
+            self._kb["save"] = False
+            if self.recording:
+                self._stop(save=True)
+        if self._kb["start"]:
+            self._kb["start"] = False
+            if not self.recording:
+                self._start()
+
         if not self.recording:
             return
         if not self.have_js or any(self.rgb[c] is None for c in self.cams):
@@ -250,8 +537,10 @@ class Recorder(Node):
         if self.use_depth and any(self.dep[c] is None for c in self.cams):
             return
 
+        measured = self._measured_poses()
         frame = {
-            "observation.state": self._measured_state(),
+            "observation.state": self._measured_state(measured),
+            "observation.force": self._tool_frame_force(),
             "action": self.action.copy(),
             "observation.joint_pos": self.joint_pos.copy(),
             "observation.joint_vel": self.joint_vel.copy(),
@@ -287,10 +576,11 @@ class Recorder(Node):
                 "no /zero/eef_target seen -- is the teleop node running? "
                 "Refusing to record: every action would be zero.")
             return
-        self._ensure_dataset()
+        if not self._ensure_dataset():
+            return
         self.recording = True
         self.n_frames = 0
-        self.get_logger().info(f"=== episode {self.n_episodes} START ===")
+        self._say(f"Recording episode {self.n_episodes}")
 
     def _stop(self, save: bool) -> None:
         self.recording = False
@@ -300,10 +590,14 @@ class Recorder(Node):
             self.get_logger().info(
                 f"=== episode SAVED: {self.n_frames} frames, "
                 f"{self.n_frames / self.fps:.1f} s  (total {self.n_episodes}) ===")
+            # Two prompts, because they are two different instructions: the first confirms the
+            # take was kept, the second is the operator's cue to put the can back.
+            self._say(f"Episode saved. {self.n_episodes} recorded")
+            self._say("Reset the environment")
         else:
             if self.ds is not None:
                 self.ds.clear_episode_buffer()
-            self.get_logger().info(f"=== episode DISCARDED ({self.n_frames} frames) ===")
+            self._say("Episode discarded. Re-record")
         self.n_frames = 0
 
 
@@ -315,7 +609,16 @@ def main() -> None:
     except KeyboardInterrupt:
         if node.recording:
             node._stop(save=True)
+        node._say("Stop recording")
+        node.finalize()
+    except SystemExit:
+        pass
     finally:
+        # finalize() is idempotent enough to call again: the ESC path and the Ctrl-C path both run
+        # it, and a second close is a no-op. Losing the footer is far worse than closing twice.
+        node.finalize()
+        if node._listener is not None:
+            node._listener.stop()
         node.destroy_node()
         rclpy.try_shutdown()
 

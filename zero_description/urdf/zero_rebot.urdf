@@ -769,6 +769,7 @@
       <param name="mujoco_model">$(find zero_description)/mjcf/zero_rebot.xml</param>
       <param name="sim_speed_factor">1.0</param>
       <param name="camera_publish_rate">30.0</param>
+      <param name="override_start_position_file">/tmp/zero_rebot_start.xml</param>
       <param name="initial_keyframe">home</param>
     </hardware>
     <joint name="left_joint1">
