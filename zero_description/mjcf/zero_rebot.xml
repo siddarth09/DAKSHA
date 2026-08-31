@@ -9,6 +9,7 @@
 
   <visual>
     <global offwidth="1280" offheight="720"/>
+    <headlight ambient="0.22 0.22 0.22" diffuse="0.28 0.28 0.28" specular="0.08 0.08 0.08"/>
   </visual>
 
   <default>
@@ -336,8 +337,8 @@
   <worldbody>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
     <camera name="front" pos="1.15 0 1.15" quat="0.573635 0.413453 0.413453 0.573635" resolution="224 224" fovy="58"/>
-    <light pos="-0.6 0.7 2.2" dir="0.276172 -0.276172 -0.920575" ambient="0.25 0.25 0.25" diffuse="0.35 0.35 0.35" specular="0.05 0.05 0.05"/>
-    <light pos="0.9 -0.7 2" dir="-0.357771 0.268328 -0.894427" ambient="0.25 0.25 0.25" diffuse="0.35 0.35 0.35" specular="0.05 0.05 0.05"/>
+    <light pos="0 0 0" dir="0.276172 -0.276172 -0.920575" type="directional" ambient="0.1 0.1 0.1" diffuse="0.45 0.45 0.45" specular="0.05 0.05 0.05"/>
+    <light pos="0 0 0" dir="-0.357771 0.268328 -0.894427" type="directional" castshadow="false" ambient="0.1 0.1 0.1" diffuse="0.28 0.28 0.28" specular="0.05 0.05 0.05"/>
     <body name="table" pos="0.05 0 0.73">
       <geom name="table_top" size="0.6 0.7 0.02" type="box" material="table_mat"/>
     </body>
@@ -471,7 +472,7 @@
                     <geom class="left_visual" material="left_alum" mesh="left_cnc7"/>
                     <geom class="left_visual" material="left_black" mesh="left_motor_7"/>
                     <site name="left_eef" pos="-0.0109 0 0.005" size="0.008" group="4"/>
-                    <camera name="left_wrist" pos="0 0 0.035" quat="0 1 0 0" resolution="224 224" fovy="70"/>
+                    <camera name="left_wrist" pos="-0.1009 0 0.005" quat="0.5 -0.5 -0.5 0.5" resolution="224 224" fovy="70"/>
                     <body name="left_gripper_left" pos="-0.041939 -7.3385e-05 0" quat="0.5 0.5 -0.5 0.5" gravcomp="1">
                       <inertial pos="-0.00218009 0.018709 0.00932189" mass="0.0752" diaginertia="1.09878e-05 9.50146e-06 9.3078e-06"/>
                       <joint name="left_gripper_joint1" class="left_gripper" pos="0 0 0" axis="0 0 1" type="slide" range="0 0.05"/>
@@ -628,7 +629,7 @@
                     <geom class="right_visual" material="right_alum" mesh="right_cnc7"/>
                     <geom class="right_visual" material="right_black" mesh="right_motor_7"/>
                     <site name="right_eef" pos="-0.0109 0 0.005" size="0.008" group="4"/>
-                    <camera name="right_wrist" pos="0 0 0.035" quat="0 1 0 0" resolution="224 224" fovy="70"/>
+                    <camera name="right_wrist" pos="-0.1009 0 0.005" quat="0.5 -0.5 -0.5 0.5" resolution="224 224" fovy="70"/>
                     <body name="right_gripper_left" pos="-0.041939 -7.3385e-05 0" quat="0.5 0.5 -0.5 0.5" gravcomp="1">
                       <inertial pos="-0.00218009 0.018709 0.00932189" mass="0.0752" diaginertia="1.09878e-05 9.50146e-06 9.3078e-06"/>
                       <joint name="right_gripper_joint1" class="right_gripper" pos="0 0 0" axis="0 0 1" type="slide" range="0 0.05"/>

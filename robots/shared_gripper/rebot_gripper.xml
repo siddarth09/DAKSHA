@@ -1,0 +1,127 @@
+<mujoco model="rebot_gripper">
+  <compiler angle="radian" autolimits="true" />
+  <default>
+    <default class="rg_seeed">
+      <default class="rg_visual">
+        <geom contype="0" conaffinity="0" group="2" type="mesh" />
+      </default>
+      <default class="rg_collision">
+        <geom group="3" type="mesh" />
+      </default>
+      <joint armature="0.01" frictionloss="0.2" />
+      <default class="rg_rs06">
+        <joint damping="5" />
+        <position kp="900" kv="60" forcerange="-36 36" />
+      </default>
+      <default class="rg_rs00">
+        <joint damping="2" />
+        <position kp="120" kv="10" forcerange="-14 14" />
+      </default>
+      <default class="rg_gripper">
+        <joint damping="1" />
+        <position kp="5000" kv="41.28" forcerange="-1904 1904" />
+      </default>
+      <mesh maxhullvert="64" />
+    </default>
+  </default>
+  <asset>
+    <material name="rg_alum" rgba="0.78 0.78 0.80 1" specular="0.4" shininess="0.3" />
+    <material name="rg_lime" rgba="0.72 0.85 0.20 1" specular="0.4" shininess="0.3" />
+    <material name="rg_black" rgba="0.05 0.05 0.06 1" specular="0.4" shininess="0.3" />
+    <mesh name="rg_cnc7" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/cnc7.STL" />
+    <mesh name="rg_cnc_left" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/cnc_left.STL" />
+    <mesh name="rg_cnc_right" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/cnc_right.STL" />
+    <mesh name="rg_motor_7" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/motor_7.STL" />
+    <mesh name="rg_pla7_green" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/pla7_green.STL" />
+    <mesh name="rg_pla_left" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/pla_left.STL" />
+    <mesh name="rg_pla_right" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/pla_right.STL" />
+    <mesh name="rg_gripper_end_col_0" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_0.stl" />
+    <mesh name="rg_gripper_end_col_1" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_1.stl" />
+    <mesh name="rg_gripper_end_col_2" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_2.stl" />
+    <mesh name="rg_gripper_end_col_3" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_3.stl" />
+    <mesh name="rg_gripper_end_col_4" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_4.stl" />
+    <mesh name="rg_gripper_end_col_5" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_5.stl" />
+    <mesh name="rg_gripper_end_col_6" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_6.stl" />
+    <mesh name="rg_gripper_end_col_7" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_7.stl" />
+    <mesh name="rg_gripper_end_col_8" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_8.stl" />
+    <mesh name="rg_gripper_end_col_9" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_9.stl" />
+    <mesh name="rg_gripper_end_col_10" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_10.stl" />
+    <mesh name="rg_gripper_end_col_11" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_end_col_11.stl" />
+    <mesh name="rg_gripper_left_col_0" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_0.stl" />
+    <mesh name="rg_gripper_left_col_1" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_1.stl" />
+    <mesh name="rg_gripper_left_col_2" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_2.stl" />
+    <mesh name="rg_gripper_left_col_3" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_3.stl" />
+    <mesh name="rg_gripper_left_col_4" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_4.stl" />
+    <mesh name="rg_gripper_left_col_5" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_5.stl" />
+    <mesh name="rg_gripper_left_col_6" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_6.stl" />
+    <mesh name="rg_gripper_left_col_7" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_left_col_7.stl" />
+    <mesh name="rg_gripper_right_col_0" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_0.stl" />
+    <mesh name="rg_gripper_right_col_1" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_1.stl" />
+    <mesh name="rg_gripper_right_col_2" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_2.stl" />
+    <mesh name="rg_gripper_right_col_3" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_3.stl" />
+    <mesh name="rg_gripper_right_col_4" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_4.stl" />
+    <mesh name="rg_gripper_right_col_5" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_5.stl" />
+    <mesh name="rg_gripper_right_col_6" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_6.stl" />
+    <mesh name="rg_gripper_right_col_7" file="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/gripper_right_col_7.stl" />
+  </asset>
+  <worldbody>
+    <body name="gripper_end">
+      <inertial pos="-0.112751692515958 0.000128443070436966 -5.72602449749882E-06" mass="0.65" fullinertia="0.00037354 0.00015830 0.00045353 -0.00000011 0.00000050 0.00000348" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_0" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_1" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_2" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_3" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_4" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_5" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_6" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_7" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_8" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_9" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_10" />
+      <geom class="rg_collision" mesh="rg_gripper_end_col_11" />
+      <body name="gripper_left" pos="-0.041939 -7.3385E-05 0" quat="0.5 0.5 -0.5 0.5">
+        <inertial pos="-0.00218008703135955 0.0187090355934181 0.00932188568692145" mass="0.0752" fullinertia="1.09877964176176E-05 9.50146036720166E-06 9.30779991911125E-06 0 0 0" />
+        <joint name="gripper_joint1" type="slide" range="0 0.05" axis="0 0 1" class="rg_gripper" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_0" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_1" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_2" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_3" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_4" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_5" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_6" />
+        <geom class="rg_collision" mesh="rg_gripper_left_col_7" />
+        <geom type="mesh" class="rg_visual" material="rg_black" mesh="rg_pla_left" pos="0 0 0" quat="1 0 0 0" />
+        <geom type="mesh" class="rg_visual" material="rg_alum" mesh="rg_cnc_left" pos="0 0 0" quat="1 0 0 0" />
+      </body>
+      <body name="gripper_right" pos="-0.041939 7.3385E-05 0" quat="0.5 -0.5 -0.5 -0.5">
+        <inertial pos="0.00218008703135955 -0.018709035593418 0.00932188568692151" mass="0.0752" fullinertia="1.09877964176176E-05 9.50146036720166E-06 9.30779991911125E-06 0 0 0" />
+        <joint name="gripper_joint2" type="slide" range="0 0.05" axis="0 0 1" class="rg_gripper" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_0" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_1" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_2" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_3" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_4" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_5" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_6" />
+        <geom class="rg_collision" mesh="rg_gripper_right_col_7" />
+        <geom type="mesh" class="rg_visual" material="rg_black" mesh="rg_pla_right" pos="0 0 0" quat="1 0 0 0" />
+        <geom type="mesh" class="rg_visual" material="rg_alum" mesh="rg_cnc_right" pos="0 0 0" quat="1 0 0 0" />
+      </body>
+      <geom type="mesh" class="rg_visual" material="rg_lime" mesh="rg_pla7_green" pos="0 0 0" quat="1 0 0 0" />
+      <geom type="mesh" class="rg_visual" material="rg_alum" mesh="rg_cnc7" pos="0 0 0" quat="1 0 0 0" />
+      <geom type="mesh" class="rg_visual" material="rg_black" mesh="rg_motor_7" pos="0 0 0" quat="1 0 0 0" />
+    </body>
+  </worldbody>
+  <contact>
+    <exclude body1="gripper_end" body2="gripper_left" />
+    <exclude body1="gripper_end" body2="gripper_right" />
+    <exclude body1="gripper_left" body2="gripper_right" />
+  </contact>
+  <equality>
+    <joint joint1="gripper_joint1" joint2="gripper_joint2" polycoef="0 1 0 0 0" solref="0.004 1" solimp="0.9999 0.99999 0.001 0.5 2" />
+  </equality>
+  <actuator>
+    <position class="rg_gripper" name="gripper_joint1" joint="gripper_joint1" ctrlrange="0 0.05" />
+    <position class="rg_gripper" name="gripper_joint2" joint="gripper_joint2" ctrlrange="0 0.05" />
+  </actuator>
+</mujoco>

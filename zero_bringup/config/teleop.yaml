@@ -18,8 +18,19 @@ zero_teleop:
 
     # How far the integrated target may lead the arm's MEASURED pose. Small = the stick feels
     # 1:1, and driving into a reach limit just stops rather than banking travel to unwind.
-    leash: 0.03
-    leash_rot: 0.20
+    # 0.03 -> 0.015 (2026-08-26). This bounds how far the commanded target may lead the MEASURED
+    # pose, so it bounds the gap between `action` and `observation.state` in the dataset. At 0.03,
+    # 28% of v1 frames sat >15 mm from their commanded pose (p90 29.5, max 31.5 = the leash), which
+    # breaks Mirage's precondition that the achieved pose be within 0.015 m at every timestep --
+    # the same condition that lets `action` serve as "the next pose to achieve" with no forward
+    # dynamics model. Raise it back if teleop feels sluggish, but re-check that percentage.
+    leash: 0.015
+    # 0.20 -> 0.05 rad (11.5 deg -> 2.9 deg), 2026-08-26. Same reasoning as `leash` above, for
+    # orientation: measured rotational lag between `action` and `observation.state` in v1 peaked at
+    # exactly 11.46 deg -- the old cap -- with 19% of frames over 2 deg. Mirage bounds the norm of
+    # the pose error including the quaternion at 0.015, which is ~1.7 deg, so 11.5 deg of commanded
+    # lead put most of the motion outside the condition that makes `action` == achieved pose.
+    leash_rot: 0.05
 
     # Left stick drives the table plane. axis_x is the stick's Y because pushing the stick AWAY
     # should send the arm AWAY (+x), which is the forward direction in the table frame.

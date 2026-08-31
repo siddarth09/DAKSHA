@@ -1,6 +1,6 @@
 """Build a training VIEW of a recorded dataset: same episodes, fewer columns.
 
-    python3 scripts/make_train_view.py                      # builds both views
+    python3 scripts/make_train_view.py [SRC_DATASET] [VIEW_PREFIX]
 
 WHY THIS EXISTS. The recorded dataset carries three 224x224 float32 depth maps per frame, which
 is 600 kB/frame -- 20.4 GiB of parquet against 367 MiB of video. The policy never reads them.
@@ -31,10 +31,13 @@ from pathlib import Path
 
 import pyarrow.parquet as pq
 
-SRC = Path.home() / "zero_data" / "rebot_pick_place"
+import sys
+
+SRC = Path(sys.argv[1]).expanduser() if len(sys.argv) > 1 else Path.home() / "zero_data" / "cross_v2"
+PREFIX = sys.argv[2] if len(sys.argv) > 2 else SRC.name.replace("_v1", "").replace("_v2", "")
 VIEWS = {
-    "zero_base": ["observation.state"],                            # stock SmolVLA baseline
-    "zero_vlfa": ["observation.state", "observation.force"],       # + the F in VLFA
+    f"{PREFIX}_base": ["observation.state"],                       # stock SmolVLA baseline
+    f"{PREFIX}_vlfa": ["observation.state", "observation.force"],  # + the F in VLFA
 }
 IMAGES = ["observation.images.front", "observation.images.left_wrist",
           "observation.images.right_wrist"]

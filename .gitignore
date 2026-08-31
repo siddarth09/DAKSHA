@@ -58,3 +58,6 @@ MUJOCO_LOG.TXT
 *.swp
 *~
 .DS_Store
+
+# FK reach cache from scripts/plan_can_poses.py -- 400k samples, regenerates in ~2 min.
+scripts/.g1_band_cache.npy

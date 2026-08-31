@@ -109,6 +109,22 @@ class EefControlNode(Node):
 
         self.q = np.zeros(self.ik["left"].model.nq)   # full-model config, kept in sync
         self.q_meas = np.zeros(self.ik["left"].model.nq)  # PURE measurement, for /zero/eef_state
+        # qpos indices of the gripper joints, for reporting the MEASURED aperture before any
+        # command has arrived -- see _publish_state.
+        # Derived from the model, not hardcoded: the two robots name these differently (reBot
+        # gripper_joint1/2, Panda finger_joint1/2). A gripper joint is any joint under this side's
+        # prefix that is not one of its arm joints.
+        model = self.ik["left"].model
+        self.grip_qidx: dict[str, list[int]] = {}
+        for side in SIDES:
+            arm = set(self.arm_joints[side])
+            idx = [model.joints[jid].idx_q for jid in range(1, model.njoints)
+                   if model.names[jid].startswith(f"{side}_") and model.names[jid] not in arm]
+            self.grip_qidx[side] = idx
+        if not all(self.grip_qidx.values()):
+            self.get_logger().warn(
+                "gripper joints not found in the model; /zero/eef_state will report the jaw as "
+                "fully open until the first command arrives")
         self.have_js = False
         self.target: np.ndarray | None = None
 
@@ -182,8 +198,24 @@ class EefControlNode(Node):
         """
         fk = {s: self.ik[s].fk(self.q_meas) for s in SIDES}      # once per side, at 100 Hz
         poses = {s: (fk[s].translation, fk[s].rotation) for s in SIDES}
-        grips = {s: (float(self.target[9 if s == "left" else 19])
-                     if self.target is not None else 0.0) for s in SIDES}
+        # ⚠️ BEFORE THE FIRST COMMAND, REPORT THE MEASURED APERTURE -- NOT 0.0. Defaulting to 0.0
+        # meant "fully closed", and in the training set a closed gripper only ever co-occurs with
+        # the can already held mid-episode. So the policy's first observation was arm-at-home +
+        # jaw-closed + can-on-table, a combination absent from all 40k frames. Measured: zeroing
+        # these two channels cuts the predicted chunk travel by 4-16x (145 -> 32 mm on ep 4,
+        # 66 -> 4 mm on ep 33), i.e. it is what made the deployed policy sit still.
+        # Once a target exists this reports the last COMMANDED grip, which is what
+        # record_node._measured_state stored and therefore what the policy trained against.
+        grips = {}
+        for s in SIDES:
+            if self.target is not None:
+                grips[s] = float(self.target[9 if s == "left" else 19])
+            elif self.grip_qidx[s]:
+                span = max(self.grip_hi - self.grip_lo, 1e-9)
+                grips[s] = float(np.clip(
+                    (np.mean(self.q_meas[self.grip_qidx[s]]) - self.grip_lo) / span, 0.0, 1.0))
+            else:
+                grips[s] = 1.0
         self.state_pub.publish(Float64MultiArray(
             data=[float(v) for v in pack(poses, grips)]))
 

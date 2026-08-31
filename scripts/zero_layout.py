@@ -269,8 +269,8 @@ ROBOTS = {
         # 39 mm version was the gripper closing BESIDE the can and flicking it away, which reads
         # as the gripper passing through the object. Acceptance test is symmetric pad clearance.
         "eef_offset": (-0.0109, 0.0000, 0.0050),
-        "wrist_cam_pos": (0.0, 0.0, 0.035),
-        "wrist_cam_xyaxes": (1, 0, 0, 0, -1, 0),   # look along the body's +z (approach axis)
+        "wrist_cam_pos": (-0.1009, 0.0, 0.0050),   # 90 mm back along -x, looking FRONT (+x)
+        "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
         "base_sep": HANDOVER_SEP,
         "base_x": -0.05,
         # Per-side, searched (scripts/findhome.py <robot> <side>). NOT mirrored from one pose:
@@ -318,8 +318,8 @@ ROBOTS = {
         # grasp pose, and the two embodiments must agree on what "the tool point" means or the
         # transfer number measures the discrepancy instead of the policy.
         "eef_offset": (0.0049, 0.0000, 0.0602),
-        "wrist_cam_pos": (0.0, 0.0, 0.02),
-        "wrist_cam_xyaxes": (1, 0, 0, 0, -1, 0),
+        "wrist_cam_pos": (-0.0851, 0.0, 0.0602),   # 90 mm back along -x, looking FRONT (+x)
+        "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
         # Panda reaches 1.19 m vs the reBot's 0.91, and its base is bulkier, so it sits wider
         # apart. ⚠️ NOT yet put through the sensitivity sweep that set the reBot's numbers --
         # run the Panda leg of scripts/reach_gate.py before trusting these.

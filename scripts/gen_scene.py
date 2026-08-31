@@ -292,14 +292,33 @@ def build(key: str) -> mujoco.MjSpec:
 
     spec.worldbody.add_geom(name="floor", type=mujoco.mjtGeom.mjGEOM_PLANE,
                             size=[0, 0, 0.05], material="groundplane")
-    # Offset from straight overhead: a light at (0,0,z) shines into the `top` camera and blows
-    # the frame out.
-    # diffuse well below 1.0: two full-strength spots blew out the pale table and Panda's white
-    # meshes in the `top` view. Ambient carries the fill instead.
-    for pos, dr in (([-0.6, 0.7, 2.2], [0.3, -0.3, -1]), ([0.9, -0.7, 2.0], [-0.4, 0.3, -1])):
-        spec.worldbody.add_light(pos=pos, dir=dr, type=mujoco.mjtLightType.mjLIGHT_SPOT,
-                                 diffuse=[0.35, 0.35, 0.35], specular=[0.05, 0.05, 0.05],
-                                 ambient=[0.25, 0.25, 0.25])
+    # ⚠️ DIRECTIONAL, NOT SPOT. Two spots aimed at the table lit the work area but left the
+    # grippers in shadow -- and the grippers are the one thing a wrist camera must resolve. A
+    # spot also falls off with distance and angle, so the same gripper changed brightness as the
+    # arm moved, which is appearance variation the policy has to learn around for no reason.
+    # Directional lights are parallel rays with no falloff (sunlight), so illumination no longer
+    # depends on where in the workspace the hand happens to be.
+    #
+    # Two of them from opposite sides: one key, one fill. The fill does not cast shadows, or every
+    # object gets two shadows and the table reads as cluttered geometry in the `front` view.
+    # Levels chosen by sweeping and measuring, not by eye: at 0.55/0.35 diffuse plus a 0.45
+    # headlight the totals exceeded 1.0 and 23% of the `front` frame clipped at 255 -- the pale
+    # table read as flat white. These give mean ~110 with 0.0% clipped on both the scene and the
+    # wrist views.
+    for dr, dif, shadow in ((( 0.3, -0.3, -1.0), 0.45, True),
+                            ((-0.4,  0.3, -1.0), 0.28, False)):
+        spec.worldbody.add_light(dir=list(dr), type=mujoco.mjtLightType.mjLIGHT_DIRECTIONAL,
+                                 castshadow=shadow,
+                                 diffuse=[dif] * 3, specular=[0.05] * 3, ambient=[0.10] * 3)
+
+    # The headlight travels with whatever camera is rendering, so it fills exactly what that
+    # camera sees -- which is the direct fix for a gripper that is dark in the wrist view but fine
+    # in the scene view. Kept modest: `diffuse` much above this blows out the pale table top and
+    # Panda's white meshes, and a blown-out frame is unusable training data, not just an ugly
+    # preview.
+    spec.visual.headlight.ambient = [0.22, 0.22, 0.22]
+    spec.visual.headlight.diffuse = [0.28, 0.28, 0.28]
+    spec.visual.headlight.specular = [0.08, 0.08, 0.08]
 
     cx, cy = L.TABLE_CENTER_XY
     hx, hy, hz = L.TABLE_HALF

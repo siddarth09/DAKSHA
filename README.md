@@ -114,6 +114,17 @@ source install/setup.bash
 Requires ROS 2 Jazzy, `mujoco_ros2_control`, `mujoco`, `pinocchio`, and (for recording)
 `lerobot` and `rerun-sdk`.
 
+> **⚠️ Two Python environments, and they are not interchangeable.** ROS nodes run under system
+> Python. Everything that touches a policy — training, evaluation, `policy_node` — runs under
+> **`/home/sid/lerobot_env`** (lerobot 0.5.1, torch 2.12+cu128). The `~/.local` install is lerobot
+> **0.4.2**: it has no SmolVLA PEFT support and a torch built for the wrong GPU arch, and a bare
+> `lerobot-train` on `PATH` resolves to *that* one. The training scripts hard-code the venv binary
+> so activation cannot be forgotten. Two environment facts worth knowing if you rebuild it:
+> the RTX 5060 is **sm_120**, so a cu126 torch fails with *"no kernel image is available"*; and
+> `nvidia-cudnn-cu12` must be **9.24.0.43** — the 9.20 wheel torch pins omits
+> `libcudnn_engines_tensor_ir.so.9`, so the loader falls back to the system 9.25 and every conv
+> dies with `CUDNN_STATUS_SUBLIBRARY_VERSION_MISMATCH`.
+
 > **Where to run things.** Every `ros2` command below runs from the **workspace root**
 > (`~/projects25`) — the `install/...` paths in them are relative to it. Every generator script
 > runs from the **package directory** (`~/projects25/src/ZERO`), because they import
@@ -140,11 +151,20 @@ ros2 run zero_control rerun_viewer --ros-args \
     -p depth:=true
 
 # 4. dataset recorder
+#    keep TASK in a variable: it is the language conditioning and must be byte-identical
+#    across every episode AND at inference
+TASK="pick up the red cylinder hand it over to the robot on the right and place it on the black tray"
 ros2 run zero_control record --ros-args \
     --params-file install/zero_bringup/share/zero_bringup/config/rebot_control.yaml \
-    -p root:=$HOME/zero_data/rebot_pick_place \
-    -p task:="pick up the can and place it in the tray"
+    -p root:=$HOME/zero_data/cross_v1 \
+    -p task:="$TASK"
 ```
+
+The recorder appends to an existing root after checking the feature schema matches, so the same
+command serves every can position — only the simulator restarts between them. It compares
+*schemas*, though, not camera geometry: nothing in a dataset records where the cameras were
+pointing, so recording into a root captured before a camera change will silently mix
+incompatible episodes. That happened here; see `scripts/merge_cross.py`.
 
 Each episode is announced out loud, the way `lerobot_record` does — "Recording episode 3",
 "Episode saved. 4 recorded", "Reset the environment", "Episode discarded. Re-record". Teleoperating
@@ -206,7 +226,7 @@ To open a finished dataset for training:
 
 ```python
 from lerobot.datasets.lerobot_dataset import LeRobotDataset
-ds = LeRobotDataset(repo_id="zero/rebot", root="~/zero_data/rebot_pick_place")
+ds = LeRobotDataset(repo_id="zero/cross", root="~/zero_data/cross_v2")
 ```
 
 Before appending, the recorder compares the dataset's feature set against what it would write and
@@ -241,6 +261,97 @@ flip `sign_x/y/z/yaw` in `zero_bringup/config/teleop.yaml`.
 
 ---
 
+## Choosing where to put the can
+
+```bash
+MUJOCO_GL=egl python3 scripts/plan_can_poses.py 10 3     # 10 positions, >=3 usable approaches
+```
+
+Positions are not picked by eye. A position is valid only if the **left** arm can reach it
+(IK-verified against the grasp orientations the operator actually used, not FK sampling, which
+under-reports), the **right** arm *cannot* — otherwise the handover is unmotivated and the demos
+carry contradictory evidence about which arm picks — a **G1** arm can reach it, and the can fits on
+the table. Of the ~100 cells that qualify, the script farthest-point-samples N so they spread over
+the reachable region instead of clustering where the IK is comfortable.
+
+## Training
+
+```bash
+# 1. build the training views (drops depth, symlinks videos -- no re-encoding)
+python3 scripts/make_train_view.py ~/zero_data/cross_v2 crossv2
+
+# 2. fine-tune SmolVLA
+bash scripts/train_base_full.sh 30000 crossv2_full_c25 $HOME/zero_data/crossv2_base
+```
+
+The **view** exists because the recorded dataset carries three 224×224 float32 depth maps per
+frame — 600 kB/frame, or 14.7 GiB of parquet against 367 MiB of video — that the policy never
+reads. Rewriting just the vector columns takes it to **4.8 MiB** and drops `data_s` to ~0.005 s.
+Two views are built: `*_base` (state + 3 cameras) and `*_vlfa` (adds the 14-dim force vector).
+lerobot types every `observation.*` key as a policy input, so **the view is the input contract** —
+the difference between the two runs is exactly the force ablation.
+
+`train_base_full.sh` trains the **action expert only** (100M of 450M; the VLM and vision tower stay
+frozen). That is SmolVLA's own default recipe, and it is also the only thing that fits: 403M
+trainable OOMs on 8 GB, because AdamW needs ~16 bytes per trainable parameter. LoRA was tried and
+is kept as `train_base_lora.sh` for the ablation — at 2.9M trainable it reached 39.5 mm and never
+grasped. **More data, not more capacity, was the lever.**
+
+## Running a policy
+
+```bash
+pkill -f 'zero_control/teleop'        # see the warning below
+ros2 launch zero_bringup rebot.launch.py can_x:=0.48 can_y:=0.52
+TRACE=$HOME/rollout.npz bash scripts/run_policy.sh    # X on the gamepad starts/stops
+```
+
+`run_policy.sh` starts its own `joy_node` (X comes from `/joy`, which the `joy` driver publishes —
+*not* the teleop node) and reads the task string from the dataset metadata rather than a hardcoded
+default, so training and inference cannot disagree about the instruction.
+
+> **⚠️ Never leave `zero_control/teleop` running alongside a policy.** It publishes the same
+> `/zero/eef_target` topic at 50 Hz against the policy's 10 Hz and holds the home pose when idle,
+> so it silently overrides every policy command. Measured: the policy asked for 162 mm of motion
+> and the arm moved **2.3 mm** in 106 s, while `resid` read 1 mm because the arm was tracking
+> *teleop's* target perfectly. `policy_node` now refuses to start if another publisher is present.
+> Note `rebot_teleop.launch.py` starts both `joy_node` *and* teleop — use it for recording only.
+
+Evaluating and debugging:
+
+```bash
+/home/sid/lerobot_env/bin/python scripts/eval_chunk_error.py [CHECKPOINT]   # error in mm, not loss
+bash scripts/diag_live_obs.sh                                              # dump one live observation
+```
+
+`eval_chunk_error.py` exists because the training loss is an MSE on normalised, zero-padded
+32-dim vectors — it cannot be compared against anything physical. This unnormalises the predicted
+chunk and reports millimetres, against the number that actually matters: the reBot jaw opens to
+100 mm on a 66 mm can, so there is only **17 mm of lateral clearance** at the grasp.
+
+`diag_live_obs.sh` captures one live observation and diffs it against the dataset. A policy that
+tracks demos offline but not in rollout is almost always being fed a different observation, and
+guessing at that costs hours.
+
+## Results
+
+| run | data | trainable | chunk error (L/R) | rollout |
+| --- | --- | --- | --- | --- |
+| LoRA r=32 | 51 eps | 2.9M | 39.5 / 32.0 mm | never grasps |
+| expert-only | 51 eps | 100M | 16.6 / 12.7 mm | misses by 57 mm |
+| **expert-only** | **82 eps** | **100M** | **11.6 / 5.7 mm** | **completes the task** |
+
+The third row executes the whole thing autonomously in ~52 s: approach → grasp (closest approach
+**3.3 mm**) → lift → carry to the handover → the second arm meets it → both jaws closed 78 mm
+apart → left releases → right carries to the tray → releases → both home.
+
+Zero-shot on the Panda the same checkpoint reaches **8.0 mm** from the can — inside the jaw
+clearance, on an arm it has never seen, with 7 DoF instead of 6. But the gripper command crosses
+its threshold 15 times instead of 2 and never commits, so the handover never fires. **The spatial
+policy transfers; the grasp decision does not** — and that decision is the one that depends on the
+close-up wrist view, which is the one place the two robots still look different.
+
+---
+
 ## Regenerating the robot descriptions
 
 Every description is generated from one file, `scripts/zero_layout.py`. Nothing is hand-edited —
@@ -266,10 +377,24 @@ Supporting tools:
 | script | purpose |
 | --- | --- |
 | `measure_tcp.py` | measure where the pads meet; prints the `eef_offset` to paste into the registry |
-| `solve_home.py` | solve a home pose with IK — reports honestly when one is unreachable |
-| `findhome.py` | older random search for a home pose, kept for comparison |
-| `solve_handover.py` | solve the base separation that forces a genuine handover |
+| `reach_gate.py` | GO/NO-GO: what volume is reachable by both reBots *and* both G1 arms |
+| `plan_can_poses.py` | pick N valid, well-spread can positions (see above) |
 | `hero_shot.py` | render the images in this README |
+| `make_shared_gripper.py` | extract the reBot gripper as a standalone MJCF, for grafting onto another arm |
+
+Data and policy tools (run these with `/home/sid/lerobot_env/bin/python`):
+
+| script | purpose |
+| --- | --- |
+| `make_train_view.py` | strip depth/auxiliary columns into a training view; symlinks videos |
+| `merge_cross.py` | merge good episodes across datasets, excluding pre-camera-fix ones |
+| `train_base_full.sh` | SmolVLA fine-tune, expert-only — the working recipe |
+| `train_base_lora.sh` | the LoRA ablation, kept for the comparison |
+| `run_policy.sh` | drive the sim from a checkpoint; `ROBOT=panda` for the other arm |
+| `eval_chunk_error.py` | open-loop chunk error in millimetres and degrees |
+| `diag_live_obs.sh` | capture one live observation and diff it against the dataset |
+| `recover_dataset.py` | rebuild a dataset whose episode index was lost |
+| `drop_episodes.py` | rebuild a dataset without some episodes (re-encodes video) |
 
 ---
 
@@ -287,7 +412,26 @@ Things that are measured, not guessed, and that will bite if you forget them.
 - **Depth reads out to ~88 m** (the skybox). Clip it before training.
 - **~170 MB per minute** of recording, mostly depth. Fifty 30-second demos is roughly 1.4 GB.
 - **Object poses are not recorded**, so success cannot be auto-labelled — episodes need
-  annotating, or add the poses and re-record.
+  annotating, or add the poses and re-record. The can's position can be *reconstructed* from the
+  left fingertip force onset plus `observation.state`, which is how the position clusters above
+  were recovered.
+- **There is no validation split.** Every error number here is measured on training episodes, so
+  it reports fit, not generalisation, and structurally cannot detect overfitting. Hold out one
+  episode per position on the next recording pass.
+- **The teleop leash bounds the recorded `action`↔`state` gap.** At `leash: 0.03` / `leash_rot:
+  0.20`, 28 % of frames sat more than 15 mm from their commanded pose and rotation peaked at
+  11.5°. Now `0.015` / `0.05`, giving 4.8 % and 2.9°. This matters beyond precision: Mirage
+  requires the achieved pose within 0.015 m at every timestep, and that is exactly the condition
+  that lets `action` serve as "the next pose to achieve" **without** fitting a forward dynamics
+  model `f(p,a) → p'`. Absolute actions alone do not buy that; absolute actions *plus* a settled
+  controller do.
+- **`observation.state`'s grip channels are the last COMMANDED grip, not a sensor.** Anything
+  publishing that observation must reproduce it. Defaulting them to 0.0 (*closed*) before the first
+  command put the policy in a state absent from all 40k training frames and cut its predicted
+  motion by 4–16×.
+- **The IK residual on `/zero/ik_status` is a single-step DLS error, not a distance to target.**
+  A 70–86 mm move needs ~20 ticks to settle and gets 10 at 10 Hz, so mid-motion values of 20–80 mm
+  are normal and do not indicate a problem.
 - **A 404 from huggingface_hub when opening a local dataset** means the local metadata is
   incomplete, not that you need credentials. The Hub is only consulted when `load_metadata()`
   fails — usually a missing `meta/episodes/` index from a killed recorder.
@@ -299,9 +443,33 @@ Things that are measured, not guessed, and that will bite if you forget them.
 
 ## Where this is going
 
+**The source policy works.** A SmolVLA fine-tune on 82 teleoperated episodes drives the reBot
+through the whole bimanual pick → handover → place autonomously. That was the prerequisite for
+everything below, and it is done.
+
 The reBot → Panda transfer is the *experiment*, not the destination. Two fixed-base arms on a
 table are the cleanest possible test of the claim: identical task, identical scene, identical
-action space, and nothing different except the arm.
+action space, and nothing different except the arm. The control half of that claim already holds —
+the same 20-dim absolute EEF pose goes into each robot's own IK, `T^S_T` from Mirage is the
+identity because both robots share the table frame, and the Panda reaches to within 8 mm of the
+can having never seen one.
+
+What does not transfer yet is the **grasp decision**, and the reason is visual: the wrist camera is
+the view the decision depends on, and it is the one view where the two robots differ. Three routes,
+in increasing cost:
+
+1. **A visually matched target arm.** A UR5e (6-DoF like the reBot, unlike the 7-DoF Panda)
+   wearing the reBot's own gripper. Verified: the gripper then projects *identically* in the wrist
+   camera — finger positions agree to 0.1 mm in the camera frame — so no re-recording is needed.
+   The open piece is the URDF; the UR5e ships MJCF only.
+2. **Cross-painting the `front` view** — Mirage's own method. Its same-base-pose assumption holds
+   for two table-mounted arms; it was demoted for the G1, not for this leg.
+3. **A wrist-only policy**, dropping `front` entirely — the one view that can never match.
+
+Still unrun, and both cheap: **VLFA** (`crossv2_vlfa` is built and waiting; force becomes a policy
+input with no model surgery, and `crossv2_base` is its control) and the **action-prior** two-stage
+scheme from `research/2606.26095-action-priors.md`, whose Stage 1 needs actions only.
+
 
 The destination is the **Unitree G1** — a humanoid, doing the same bimanual pick-and-handover with
 its own arms and three-finger Dex3 hands. A humanoid changes what "the same action space" means: the base can

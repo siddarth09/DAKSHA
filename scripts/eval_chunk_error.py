@@ -23,10 +23,12 @@ import torch
 
 import sys
 CKPT = (sys.argv[1] if len(sys.argv) > 1 else
-        "/home/sid/zero_runs/base_lora_r32/checkpoints/last/pretrained_model")
-ROOT = "/home/sid/zero_data/zero_base"
-# one episode per recorded can position
-EPISODES = [0, 7, 10, 14, 22, 36, 42, 49]
+        "/home/sid/zero_runs/crossv2_full_c25/checkpoints/last/pretrained_model")
+ROOT = "/home/sid/zero_data/crossv2_base"
+# One episode per can position in cross_v2, chosen as the most central of each cluster:
+#   ep  0 (0.25,0.07)   5 (0.24,0.04)  14 (0.44,0.60)  32 (0.46,0.37)  42 (0.55,0.24)
+#   ep 58 (0.33,0.22)  59 (0.30,0.23)  70 (0.48,0.24)  71 (0.50,0.51)
+EPISODES = [0, 5, 14, 32, 42, 58, 59, 70, 71]
 FRAMES_PER_EP = 10
 
 

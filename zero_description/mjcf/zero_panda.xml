@@ -9,6 +9,7 @@
 
   <visual>
     <global offwidth="1280" offheight="720"/>
+    <headlight ambient="0.22 0.22 0.22" diffuse="0.28 0.28 0.28" specular="0.08 0.08 0.08"/>
   </visual>
 
   <default>
@@ -260,8 +261,8 @@
   <worldbody>
     <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
     <camera name="front" pos="1.15 0 1.15" quat="0.573635 0.413453 0.413453 0.573635" resolution="224 224" fovy="58"/>
-    <light pos="-0.6 0.7 2.2" dir="0.276172 -0.276172 -0.920575" ambient="0.25 0.25 0.25" diffuse="0.35 0.35 0.35" specular="0.05 0.05 0.05"/>
-    <light pos="0.9 -0.7 2" dir="-0.357771 0.268328 -0.894427" ambient="0.25 0.25 0.25" diffuse="0.35 0.35 0.35" specular="0.05 0.05 0.05"/>
+    <light pos="0 0 0" dir="0.276172 -0.276172 -0.920575" type="directional" ambient="0.1 0.1 0.1" diffuse="0.45 0.45 0.45" specular="0.05 0.05 0.05"/>
+    <light pos="0 0 0" dir="-0.357771 0.268328 -0.894427" type="directional" castshadow="false" ambient="0.1 0.1 0.1" diffuse="0.28 0.28 0.28" specular="0.05 0.05 0.05"/>
     <body name="table" pos="0.05 0 0.73">
       <geom name="table_top" size="0.6 0.7 0.02" type="box" material="table_mat"/>
     </body>
@@ -369,7 +370,7 @@
                       <geom class="left_collision" mesh="left_hand_c"/>
                       <site name="left_panda_ee" pos="0 0 0.107" group="4" rgba="1 0 0 1"/>
                       <site name="left_eef" pos="0.0049 0 0.0602" size="0.008" group="4"/>
-                      <camera name="left_wrist" pos="0 0 0.02" quat="0 1 0 0" resolution="224 224" fovy="70"/>
+                      <camera name="left_wrist" pos="-0.0851 0 0.0602" quat="0.5 -0.5 -0.5 0.5" resolution="224 224" fovy="70"/>
                       <body name="left_left_finger" pos="0 0 0.0584" gravcomp="1">
                         <inertial pos="0 0 0" mass="0.015" diaginertia="2.375e-06 2.375e-06 7.5e-07"/>
                         <joint name="left_finger_joint1" class="left_finger" pos="0 0 0" axis="0 1 0"/>
@@ -497,7 +498,7 @@
                       <geom class="right_collision" mesh="right_hand_c"/>
                       <site name="right_panda_ee" pos="0 0 0.107" group="4" rgba="1 0 0 1"/>
                       <site name="right_eef" pos="0.0049 0 0.0602" size="0.008" group="4"/>
-                      <camera name="right_wrist" pos="0 0 0.02" quat="0 1 0 0" resolution="224 224" fovy="70"/>
+                      <camera name="right_wrist" pos="-0.0851 0 0.0602" quat="0.5 -0.5 -0.5 0.5" resolution="224 224" fovy="70"/>
                       <body name="right_left_finger" pos="0 0 0.0584" gravcomp="1">
                         <inertial pos="0 0 0" mass="0.015" diaginertia="2.375e-06 2.375e-06 7.5e-07"/>
                         <joint name="right_finger_joint1" class="right_finger" pos="0 0 0" axis="0 1 0"/>

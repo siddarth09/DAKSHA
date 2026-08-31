@@ -374,6 +374,19 @@ class Recorder(Node):
         threads = 2 * len(self.cams)
         info = self.root / "meta" / "info.json"
         episodes_idx = sorted((self.root / "meta" / "episodes").glob("**/*.parquet"))
+        # DISTINGUISH "never used" FROM "lost its index", BEFORE the check below. `create()` writes
+        # meta/info.json immediately, so starting the recorder and stopping it before the first
+        # episode leaves a skeleton with no episode index. That is indistinguishable from a dataset
+        # whose index was lost, but it has nothing in it to protect -- and refusing to record is
+        # pure friction that fires every time the recorder is restarted between can positions.
+        if (info.exists() and not episodes_idx
+                and not sorted((self.root / "data").glob("**/*.parquet"))
+                and not sorted((self.root / "videos").glob("**/*.mp4"))):
+            import shutil
+            shutil.rmtree(self.root)
+            self.get_logger().info(
+                f"{self.root} held an empty dataset skeleton (no frames, no videos) left by a "
+                f"recorder stopped before its first episode -- recreating it.")
         if info.exists() and not episodes_idx:
             # LOG, do not raise. This runs inside a timer callback, so a SystemExit propagates out
             # of rclpy.spin and lands in main's `except SystemExit` -- which exists for the ESC

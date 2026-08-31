@@ -67,8 +67,15 @@ class TeleopNode(Node):
         self.declare_parameter("yaw_speed", 0.9)        # rad/s at full stick
         self.declare_parameter("expo", 2.0)             # stick response curve
         self.declare_parameter("grip_speed", 0.7)       # fraction of full travel per second
-        self.declare_parameter("leash", 0.03)           # m the target may lead the arm
-        self.declare_parameter("leash_rot", 0.20)       # rad ditto
+        # 0.03 -> 0.015 on 2026-08-26. The leash bounds how far the commanded target may lead
+        # the MEASURED pose, so it directly bounds the gap between `action` and `observation.state`
+        # in the recorded dataset. At 0.03 the v1 recording had 28% of frames more than 15 mm from
+        # their commanded pose (p90 29.5 mm, max 31.5 mm = exactly the leash). Mirage requires the
+        # achieved pose to be within 0.015 m of the desired pose at every timestep, and that is
+        # also what makes `action` usable as "the next pose to achieve" without fitting a forward
+        # dynamics model f(p, a) -> p'. 0.015 makes the dataset satisfy that by construction.
+        self.declare_parameter("leash", 0.015)          # m the target may lead the arm
+        self.declare_parameter("leash_rot", 0.05)       # rad ditto -- see `leash` above
         self.declare_parameter("ws_min", [-1.0, -1.0, 0.0])
         self.declare_parameter("ws_max", [1.0, 1.0, 2.0])
         # Axis / button map. Defaults are the standard XInput layout, which is what joy_node

@@ -43,7 +43,11 @@ set -euo pipefail
 EPISODES="$(python3 -c "print('['+','.join(str(i) for i in range(60) if i not in {18,31,33,34,35,55})+']')")"
 RUN="${1:-base_lora_r32}"
 
-lerobot-train \
+# ⚠️ ABSOLUTE PATH, NOT A BARE `lerobot-train`. There are two installs: this venv's 0.5.1 and an
+# editable 0.4.2 under ~/.local -> /home/sid/lerobot. A bare command resolves by PATH, so forgetting
+# to activate the venv silently trains with 0.4.2 -- which has no SmolVLA PEFT support and a torch
+# built for the wrong GPU arch. Hard-code it so the script cannot pick the wrong one.
+/home/sid/lerobot_env/bin/lerobot-train \
   --dataset.repo_id=zero/base \
   --dataset.root="$HOME/zero_data/zero_base" \
   --dataset.episodes="$EPISODES" \
