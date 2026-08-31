@@ -3,15 +3,16 @@
     ros2 run zero_control rerun_viewer --ros-args \
         --params-file install/zero_bringup/share/zero_bringup/config/rebot_control.yaml
 
-WHY A VIEWER AND NOT JUST RVIZ. What matters while teleoperating is whether the DATA is good, and
-that is a different question from whether the sim looks right. Three things go wrong invisibly:
-a camera silently stops publishing (mujoco_ros2_control binds cameras to URDF <sensor> blocks BY
-NAME, and a mismatch produces no error and no images); the arm stops tracking the operator, so the
-recorded action is not what the arm did; and a grasp loads one pad and not the other, which is how
-the tool-point bug presented. All three are obvious in a time series and invisible in a 3D view.
+A viewer, not just RViz. What matters while teleoperating is whether the data is good, which is
+a different question from whether the sim looks right. Three things go wrong invisibly: a camera
+silently stops publishing (mujoco_ros2_control binds cameras to URDF <sensor> blocks by name,
+and a mismatch produces no error and no images); the arm stops tracking the operator, so the
+recorded action is not what the arm did; and a grasp loads one pad and not the other, which is
+how the tool-point bug presented. All three are obvious in a time series and invisible in a 3D
+view.
 
 Everything is logged on one shared timeline, so a force spike can be lined up against the frame
-that produced it -- which is the whole point of looking at them together.
+that produced it.
 """
 
 from __future__ import annotations
@@ -44,8 +45,8 @@ class RerunViewer(Node):
         self.show_depth = bool(self.get_parameter("depth").value)
 
         rr.init("zero_teleop", spawn=True)
-        # A blueprint would pin the layout, but the default auto-layout already groups by entity
-        # path, so keep the paths meaningful instead: camera/<name>, joint/<name>, force/<name>.
+        # A blueprint would pin the layout, but the default auto-layout already groups by entity path, so
+        # keep the paths meaningful instead: camera/<name>, joint/<name>, force/<name>.
         rr.log("/", rr.TextDocument(
             "ZERO teleop monitor\n"
             f"cameras: {', '.join(cams)}\n"
@@ -106,8 +107,8 @@ class RerunViewer(Node):
         self._t(msg.header)
         f = msg.wrench.force
         v = np.array([f.x, f.y, f.z])
-        # Magnitude is the number that tells you whether a pad is loaded; the axes are there for
-        # when it matters which way.
+        # Magnitude is the number that tells you whether a pad is loaded; the axes are there for when it
+        # matters which way.
         rr.log(f"force/{sensor}", rr.Scalars(float(np.linalg.norm(v))))
         for axis, val in zip("xyz", v):
             rr.log(f"force_axis/{sensor}/{axis}", rr.Scalars(float(val)))
@@ -127,8 +128,8 @@ class RerunViewer(Node):
         if len(msg.data) != 6:
             return
         self._t()
-        # Tracking error. If this is not near zero the recorded action is not what the arm did,
-        # which makes the frame worse than useless -- it is mislabelled.
+        # Tracking error. If this is not near zero the recorded action is not what the arm did, which
+        # makes the frame mislabelled rather than merely useless.
         for i, side in enumerate(SIDES):
             rr.log(f"ik/{side}/pos_err_mm", rr.Scalars(float(msg.data[3 * i] * 1000)))
             rr.log(f"ik/{side}/rot_err_deg",

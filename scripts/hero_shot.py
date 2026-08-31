@@ -1,10 +1,10 @@
 """Render a presentable view of a workstation, for the README.
 
     python scripts/hero_shot.py rebot
-    python scripts/hero_shot.py panda
+    python scripts/hero_shot.py ur5e
 
-Uses the `home` keyframe after a short settle, so what the image shows is exactly the state the
-sim boots into -- not a hand-posed arrangement that no longer matches the model.
+Uses the `home` keyframe after a short settle, so the image shows the state the sim boots into
+rather than a hand-posed arrangement that no longer matches the model.
 """
 
 from __future__ import annotations

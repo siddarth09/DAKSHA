@@ -4,9 +4,9 @@
 
 joy_node reports this pad as an "Xbox 360 Controller" and the resting axes match XInput exactly
 (8 axes, 11 buttons, axes 2 and 5 resting at +1 = the analog triggers), so the defaults in
-teleop.yaml should be right. But clones differ on SIGNS more often than on indices, and a flipped
-sign is not obvious from a static dump -- it just makes the arm go the wrong way once you are
-driving. This names each control as it moves, with its live value.
+teleop.yaml should be right. But clones differ on signs more often than on indices, and a
+flipped sign is not obvious from a static dump; it just makes the arm go the wrong way once you
+are driving. This names each control as it moves, with its live value.
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ import rclpy
 from rclpy.node import Node
 from sensor_msgs.msg import Joy
 
-# Standard XInput layout, used only to LABEL what moved.
+# Standard XInput layout, used only to label what moved.
 AXES = {0: "left stick X (left +)", 1: "left stick Y (up +)", 2: "LT trigger",
         3: "right stick X (left +)", 4: "right stick Y (up +)", 5: "RT trigger",
         6: "D-pad X", 7: "D-pad Y"}

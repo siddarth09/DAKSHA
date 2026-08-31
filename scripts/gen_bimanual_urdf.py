@@ -1,11 +1,11 @@
 """Generate a two-arm URDF (with a ros2_control block for mujoco_ros2_control) from Seeed's
 official single-arm RS URDF.
 
-WHY GENERATE INSTEAD OF HAND-EDITING: Seeed's URDF is a 772-line SolidWorks export with no
-xacro macro and no prefix support, so two copies collide on every link and joint name. Doing
-it programmatically means (a) no 700 lines of hand-renamed duplication to maintain, (b) it is
-re-runnable when Seeed updates the URDF, and (c) the mount poses and joint names come from
-`zero_layout`, the same module the MJCF generator uses -- so the two descriptions cannot drift.
+Generated rather than hand-edited: Seeed's URDF is a 772-line SolidWorks export with no xacro
+macro and no prefix support, so two copies collide on every link and joint name. Generating means
+no hand-renamed duplication to maintain, it is re-runnable when Seeed updates the URDF, and the
+mount poses and joint names come from `zero_layout`, the same module the MJCF generator uses, so
+the two descriptions cannot drift.
 
 Run:  python scripts/gen_bimanual_urdf.py
 Out:  zero_description/urdf/zero_bimanual.urdf
@@ -19,12 +19,12 @@ import xml.etree.ElementTree as ET
 
 import zero_layout as L
 
-# ⚠️ ABSOLUTE FILESYSTEM PATH, not a package:// URI. mujoco_ros2_control does NOT resolve
-# package:// for this param -- it passes the string straight to the MuJoCo loader, and
+# Absolute filesystem path, not a package:// URI. mujoco_ros2_control does not resolve package://
+# for this param; it passes the string straight to the MuJoCo loader and
 # `package://zero_description/mjcf/zero_bimanual.xml` fails with
 #   [FATAL] MuJoCo model file 'package://...' does not exist!
-# Points at the SOURCE tree rather than the install share so it stays valid whether or not the
-# workspace has been rebuilt. Regenerate this URDF if the project ever moves.
+# Points at the source tree rather than the install share so it stays valid whether or not the
+# workspace has been rebuilt. Regenerate this URDF if the project moves.
 MJCF_PATH = str(L.OUT_MJCF)
 
 
@@ -45,7 +45,7 @@ def prefix_side(arm: ET.Element, side: str) -> tuple[list[ET.Element], list[ET.E
     and the joint's `<parent link=>` / `<child link=>` back-references. Missing any one of
     those produces a URDF that parses but describes a disconnected tree.
 
-    Materials are deliberately NOT prefixed -- they are global in URDF, and duplicating them
+    Materials are deliberately not prefixed: they are global in URDF, and duplicating them
     per side would just emit redefinition warnings.
     """
     links, joints = [], []
@@ -80,9 +80,9 @@ def build() -> ET.Element:
     for mat in arm.findall("material"):
         robot.append(copy.deepcopy(mat))
 
-    # A world root. base_link of each arm hangs off it by a fixed joint at the mount pose,
-    # which is what makes the two subtrees a single connected URDF (ros2_control and
-    # robot_state_publisher both reject a forest).
+    # A world root. base_link of each arm hangs off it by a fixed joint at the mount pose, which
+    # makes the two subtrees one connected URDF; ros2_control and robot_state_publisher both reject
+    # a forest.
     ET.SubElement(robot, "link", {"name": "world"})
 
     for side in L.SIDES:
@@ -119,11 +119,11 @@ def add_ros2_control(robot: ET.Element) -> None:
         for iface in ("position", "velocity"):
             ET.SubElement(j, "state_interface", {"name": iface})
 
-    # ── CAMERAS. Declaring a <camera> in the MJCF is NOT enough: mujoco_ros2_control only
-    # publishes a camera if a <sensor> of the SAME NAME appears here. No extra plugin is needed
-    # -- image/info/depth publishing is in the core system interface (the plugins package ships
-    # only Heartbeat and ExternalWrench). Without these blocks the cameras exist in MuJoCo and
-    # silently never reach ROS, which reads like a QoS or networking fault.
+    # Cameras. Declaring a <camera> in the MJCF is not enough: mujoco_ros2_control only publishes a
+    # camera if a <sensor> of the same name appears here. No extra plugin is needed, since
+    # image/info/depth publishing is in the core system interface (the plugins package ships only
+    # Heartbeat and ExternalWrench). Without these blocks the cameras exist in MuJoCo and never
+    # reach ROS, which looks like a QoS or networking fault.
     for cam in L.all_cameras():
         sen = ET.SubElement(rc, "sensor", {"name": cam})
         for key, val in (

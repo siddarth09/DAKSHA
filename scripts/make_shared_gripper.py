@@ -2,15 +2,15 @@
 
     python3 scripts/make_shared_gripper.py     ->  robots/shared_gripper/rebot_gripper.xml
 
-WHY. Measured on the Panda, the trained policy reaches the can zero-shot (8.0 mm closest approach,
-inside the 17 mm jaw clearance) but never commits to a grasp: the commanded gripper crosses its
-0.5 threshold 15 times versus 2 on the reBot. The reach transfers; the grasp DECISION does not.
-That decision is the one that depends on the close-up wrist view, and the wrist view is the one
-place the two robots still differ visually -- reBot's black jaws versus Panda's white fingers.
+On a stock Panda the trained policy reaches the can zero-shot (8.0 mm closest approach, inside
+the 17 mm jaw clearance) but never commits to a grasp: the commanded gripper crosses its 0.5
+threshold 15 times against 2 on the reBot. The reach transfers, the grasp decision does not.
+That decision depends on the close-up wrist view, and the wrist view is the one place the two
+robots still differ visually: the reBot's black jaws against Panda's white fingers.
 
-Putting the SAME gripper on both robots removes that difference, which is UMI's premise
-("hardware-agnostic across multiple robot platforms"). Doing it by moving the reBot's gripper onto
-the Panda -- rather than putting a new gripper on both -- changes only the TARGET robot, so the 82
+Putting the same gripper on both robots removes that difference, which is UMI's premise
+("hardware-agnostic across multiple robot platforms"). Moving the reBot's gripper onto the
+target, rather than putting a new gripper on both, changes only the target robot, so the 82
 recorded episodes stay valid. Re-recording them would cost ~10 hours of teleoperation.
 
 There is no MjSpec `detach`, so the subtree is lifted by XML surgery: the `gripper_end` body is
@@ -56,9 +56,9 @@ def main() -> None:
     meshdir = (SRC.parent / (comp.get("meshdir") or "")).resolve() if comp is not None else SRC.parent
     if comp is not None:
         comp = ET.fromstring(ET.tostring(comp))
-        # ⚠️ ABSOLUTE MESH PATHS. On attach the PARENT spec's meshdir wins, so a relative path here
-        # is resolved against the host arm's asset directory and the compile dies with
-        # "Error opening file .../franka_emika_panda/assets/cnc7.STL".
+        # Absolute mesh paths. On attach the parent spec's meshdir wins, so a relative path here is
+        # resolved against the host arm's asset directory and the compile dies with "Error opening file
+        # .../franka_emika_panda/assets/cnc7.STL".
         comp.attrib.pop("meshdir", None)
         out.append(comp)
     d = root.find("default")
@@ -98,10 +98,10 @@ def main() -> None:
         if not len(list(dst)):
             out.remove(dst)
 
-    # ⚠️ NAMESPACE THE ASSETS. Both source models define a material called `black`, and MjSpec
-    # attach with an empty prefix then fails with "repeated name 'black' in material". Bodies and
-    # joints keep their names (the scene generator prefixes those per side); only assets and the
-    # default classes they reference are renamed.
+    # Namespace the assets. Both source models define a material called `black`, and MjSpec attach
+    # with an empty prefix then fails with "repeated name 'black' in material". Bodies and joints keep
+    # their names (the scene generator prefixes those per side); only assets and the default classes
+    # they reference are renamed.
     ren = {}
     for a in asset:
         n = a.get("name") or Path(a.get("file", "")).stem
@@ -113,7 +113,7 @@ def main() -> None:
             if e.get(k) in ren:
                 e.set(k, ren[e.get(k)])
 
-    # Same collision for default CLASS names ("repeated default class name"): both models define
+    # Same collision for default class names ("repeated default class name"): both models define
     # `collision` and `visual`. Rename the classes and every `class`/`childclass` that points at one.
     cls = {}
     dflt = out.find("default")

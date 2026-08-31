@@ -2,24 +2,23 @@
 
     python3 scripts/recover_dataset.py  ~/zero_data/rebot_pick_place.broken  ~/zero_data/rebot_recovered
 
-WHEN THIS IS NEEDED. LeRobotDataset writes `meta/episodes/*.parquet` -- the episode index -- only
-when its writers are closed. A recorder that is killed leaves `meta/info.json` claiming N episodes
-with no index, so the dataset cannot be opened at all, even though the frame data and the videos
-are sitting there intact. That is worth repairing rather than re-recording: the frames represent
-real teleoperation time.
+LeRobotDataset writes `meta/episodes/*.parquet`, the episode index, only when its writers are
+closed. A recorder that is killed leaves `meta/info.json` claiming N episodes with no index, so
+the dataset cannot be opened at all even though the frame data and the videos are intact. Those
+frames are real teleoperation time, so they are worth repairing rather than re-recording.
 
-WHAT SURVIVES. Everything except the episode being written at the moment of death:
+Everything survives except the episode being written at the moment of death:
 
   * per-frame features (state, action, joints, force, ik_residual, depth) live in
     `data/chunk-*/file-*.parquet`, one file per episode. A file that was mid-write has no parquet
     footer and is unreadable; the earlier ones are fine.
-  * RGB lives in one mp4 per camera with every episode concatenated, and the mp4 IS usually
+  * RGB lives in one mp4 per camera with every episode concatenated, and the mp4 is usually
     complete because it is finalised per episode. Episode boundaries are recovered from the
     per-episode frame counts, since the index that recorded them is what went missing.
 
-HOW. Rather than hand-write the episode index (a ~200-column schema of pointers and per-feature
+Rather than hand-write the episode index (a ~200-column schema of pointers and per-feature
 statistics, easy to get subtly wrong), this replays the surviving frames through
-`LeRobotDataset.add_frame` / `save_episode` into a NEW dataset, so lerobot computes the metadata
+`LeRobotDataset.add_frame` / `save_episode` into a new dataset, so lerobot computes the metadata
 and the stats itself. Slower, and correct by construction.
 
 Videos are decoded in one sequential pass per camera, never held in memory: 5000 frames x 3
@@ -70,13 +69,13 @@ def main() -> None:
         raise SystemExit(__doc__)
     src, dst = Path(sys.argv[1]).expanduser(), Path(sys.argv[2]).expanduser()
     if dst.exists():
-        raise SystemExit(f"{dst} already exists -- point at a fresh directory")
+        raise SystemExit(f"{dst} already exists, point at a fresh directory")
 
     info = json.loads((src / "meta" / "info.json").read_text())
     features = info["features"]
-    # ⚠️ Shapes come back from JSON as LISTS ([20]) while numpy reports TUPLES ((20,)), and
-    # lerobot's validate_frame compares them with !=, so every feature fails validation with
-    # "does not have the expected shape" even though the numbers match. Coerce on the way in.
+    # Shapes come back from JSON as lists ([20]) while numpy reports tuples ((20,)), and lerobot's
+    # validate_frame compares them with !=, so every feature fails validation with "does not have the
+    # expected shape" even though the numbers match. Coerce on the way in.
     for spec in features.values():
         if isinstance(spec.get("shape"), list):
             spec["shape"] = tuple(spec["shape"])
@@ -87,7 +86,7 @@ def main() -> None:
 
     eps = readable_episodes(src)
     if not eps:
-        raise SystemExit("no readable episode parquet found -- nothing to recover")
+        raise SystemExit("no readable episode parquet found, nothing to recover")
     total = sum(n for _, _, n in eps)
     print(f"recovering {len(eps)} episodes, {total} frames: "
           + ", ".join(f"ep{e}={n}" for e, _, n in eps))
@@ -99,10 +98,10 @@ def main() -> None:
         if not v.exists():
             raise SystemExit(f"missing video for {c}: {v}")
 
-    # ⚠️ The mp4s hold EVERY episode back to back, including ones whose parquet died, so the frame
-    # offset must be the cumulative count over ALL episodes in order -- not over the recovered
-    # ones. Skipping a dead episode without skipping its video frames would silently pair every
-    # later episode with the wrong images.
+    # The mp4s hold every episode back to back, including ones whose parquet died, so the frame
+    # offset must be the cumulative count over all episodes in order, not over the recovered ones.
+    # Skipping a dead episode without skipping its video frames would pair every later episode with
+    # the wrong images.
     lengths: dict[int, int] = {e: n for e, _, n in eps}
     order = sorted(lengths)
     if order != list(range(order[0], order[-1] + 1)):

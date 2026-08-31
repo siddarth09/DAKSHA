@@ -3,30 +3,27 @@
 Regenerates robots/seeed_rebot_devarm/seeed_rebot_devarm.xml from the pristine
 `.menagerie-orig` copy, applying two corrections. Re-runnable; safe to re-run.
 
-WHY THIS EXISTS -- two independent divergences between menagerie and Seeed's URDF, both of
-which are silent and both of which break mujoco_ros2_control, since it binds the URDF and the
-MJCF together purely by joint name:
+Two divergences between menagerie and Seeed's URDF. Both are silent, and both break
+mujoco_ros2_control, which binds the URDF and the MJCF together by joint name:
 
-1. GRIPPER JOINT NAMES. menagerie calls them `joint_left`/`joint_right`; the official URDF
-   calls them `gripper_joint1`/`gripper_joint2`. Mismatched names are simply skipped, so the
-   arm works and the gripper never moves -- easy to misread as a controller problem.
+1. Gripper joint names. menagerie calls them `joint_left`/`joint_right`, the official URDF calls
+   them `gripper_joint1`/`gripper_joint2`. Mismatched names are skipped, so the arm works and
+   the gripper never moves.
 
-2. JOINT SIGN CONVENTION (the nasty one). menagerie inverted the rotation axis on ALL SIX arm
-   joints. MEASURED by compiling both models in MuJoCo and comparing forward kinematics over
-   500 random configurations:
-       zero pose:                identical, gripper_end (0.3017, 0, 0.2177) in both
-       same joint angles:        766 mm mean / 1448 mm max disagreement
-       URDF angles NEGATED:      0.00 mm -- exact agreement
-   So the geometry is identical and only the sign differs. Left unfixed, every commanded joint
-   rotates backwards in sim while RViz shows the mirror image.
+2. Joint sign convention. menagerie inverted the rotation axis on all six arm joints. Compiling
+   both models and comparing forward kinematics over 500 random configurations:
+       zero pose:            identical, gripper_end (0.3017, 0, 0.2177) in both
+       same joint angles:    766 mm mean / 1448 mm max disagreement
+       URDF angles negated:  0.00 mm, exact agreement
+   The geometry is identical and only the sign differs. Unfixed, every commanded joint rotates
+   backwards in sim while RViz shows the mirror image.
 
-THE URDF WINS, not menagerie: Seeed's URDF is what their Python SDK, their MoveIt config and
-the real RobStride motors use, so it defines the hardware's positive direction. Matching it
-means a policy or trajectory developed in sim transfers sign-correctly to hardware.
+The URDF wins because Seeed's Python SDK, their MoveIt config and the real RobStride motors all
+use it, so it defines the hardware's positive direction.
 
-Flipping an axis is not a one-line change -- everything expressed in that joint's coordinates
-has to flip with it: the joint `range` (negate AND swap, since -3.14..0 becomes 0..3.14), the
-actuator `ctrlrange` likewise, and every `qpos`/`ctrl` entry in every keyframe.
+Flipping an axis touches everything expressed in that joint's coordinates: the joint `range`
+(negate and swap, since -3.14..0 becomes 0..3.14), the actuator `ctrlrange` likewise, and every
+`qpos`/`ctrl` entry in every keyframe.
 
 Run:  python scripts/fix_mjcf_conventions.py
 """
@@ -63,12 +60,12 @@ def main() -> None:
 
     root = ET.parse(PRISTINE).getroot()
 
-    # --- 1. rename gripper joints (joint elements, and everything referencing them) ---
+    # 1. rename gripper joints (joint elements, and everything referencing them)
     # `joint1`/`joint2` are here because menagerie couples the two fingers with
     #   <equality><joint joint1="joint_left" joint2="joint_right" polycoef="0 1 0 0 0"/>
-    # which models the real 1:1 rack-and-pinion. Miss those two attributes and the model fails
-    # to compile with "unknown element 'joint_left' in equality constraint". Matching is on the
-    # attribute VALUE, so there is no clash with the arm joints that happen to be *named*
+    # modelling the real 1:1 rack-and-pinion. Miss those two attributes and the model fails to
+    # compile with "unknown element 'joint_left' in equality constraint". Matching is on the
+    # attribute value, so there is no clash with the arm joints that happen to be named
     # joint1/joint2.
     for el in root.iter():
         for attr in ("name", "joint", "joint1", "joint2"):
@@ -76,7 +73,7 @@ def main() -> None:
             if v in RENAME:
                 el.set(attr, RENAME[v])
 
-    # --- 2. flip the six arm joints ---
+    # 2. flip the six arm joints
     flipped = []
     for joint in root.iter("joint"):
         name = joint.get("name")
@@ -94,8 +91,8 @@ def main() -> None:
             if (cr := act.get("ctrlrange")) is not None:
                 act.set("ctrlrange", flip_pair(cr))
 
-    # keyframes: qpos/ctrl are ordered by joint/actuator index. Both lists here are the 8
-    # joints in declaration order, so flip the first six entries of each.
+    # keyframes: qpos/ctrl are ordered by joint/actuator index. Both lists are the 8 joints in
+    # declaration order, so flip the first six entries of each.
     n_flip = len(L.ARM_JOINTS)
     for key in root.iter("key"):
         for attr in ("qpos", "ctrl"):

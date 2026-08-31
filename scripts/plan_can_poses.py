@@ -1,19 +1,18 @@
-"""Pick N well-spread can positions that are valid for the whole reBot -> Panda -> G1 chain.
+"""Pick N well-spread can positions that are valid for the whole reBot -> UR5e -> G1 chain.
 
     MUJOCO_GL=egl python3 scripts/plan_can_poses.py [N] [MIN_APPROACHES]
 
-A position is VALID only if all four hold:
+A position is valid only if all four hold:
 
-  1. the reBot's LEFT arm can reach it, IK-verified against the grasp orientations the operator
-     actually used (not FK sampling, which only says "reachable" if a random configuration
-     happened to land there, and so under-reports);
-  2. the reBot's RIGHT arm CANNOT reach it. This is the non-obvious one. If the right arm can
-     grasp the can directly then the handover is unmotivated, and the demonstrations carry
-     contradictory evidence about which arm should pick. A kinematically ideal pose can be
-     TASK-invalid;
+  1. the reBot's left arm can reach it, IK-verified against the grasp orientations the operator
+     actually used. FK sampling only says "reachable" if a random configuration happened to land
+     there, so it under-reports;
+  2. the reBot's right arm cannot reach it. If the right arm can grasp the can directly then the
+     handover is unmotivated and the demonstrations carry contradictory evidence about which arm
+     should pick, so a kinematically ideal pose can still be task-invalid;
   3. a G1 arm can reach it, so the data is not wasted for the destination embodiment. Note the
-     mirror: with the G1 facing the table at yaw 180 its LEFT arm covers world -y, so the reBot's
-     left arm maps to the G1's RIGHT arm;
+     mirror: with the G1 facing the table at yaw 180 its left arm covers world -y, so the
+     reBot's left arm maps to the G1's right arm;
   4. it is on the table with clearance for the can's radius.
 
 Among the valid cells the N returned are chosen by farthest-point sampling, so they spread over
@@ -37,7 +36,7 @@ from zero_control.ik import ArmIK
 
 G1_XML = "/home/sid/mujoco_menagerie/unitree_g1/g1_with_hands.xml"
 G1_PALM = {"right": (0.1152, 0.0845, -0.0024)}
-G1_BASE = np.array([0.75, 0.0, 0.79])          # pelvis, yaw 180 -- reach_gate.py's verdict
+G1_BASE = np.array([0.75, 0.0, 0.79])          # pelvis, yaw 180; reach_gate.py's verdict
 GRID = 0.04
 CAN_R = 0.033
 
@@ -154,8 +153,8 @@ def main() -> None:
     if not len(V):
         return
 
-    # farthest-point sampling: start from the most approach-free cell, then repeatedly take the
-    # cell furthest from everything chosen so far
+    # farthest-point sampling: start from the most approach-free cell, then repeatedly take the cell
+    # furthest from everything chosen so far
     free = np.array([n for _, _, n in valid])
     picked = [int(np.argmax(free))]
     while len(picked) < min(n_want, len(V)):

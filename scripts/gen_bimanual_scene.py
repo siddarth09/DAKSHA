@@ -1,12 +1,12 @@
 """Build the two-arm Seeed reBot DevArm MJCF that mujoco_ros2_control loads, and render it.
 
 Two copies of the menagerie arm are attached with `MjSpec.attach`, which prefixes every
-joint/body/geom/actuator name. MuJoCo's `<include>` does NOT namespace anything, so two
-includes of one model collide on every name -- attach is the only clean route.
+joint/body/geom/actuator name. MuJoCo's `<include>` does not namespace anything, so two includes
+of one model collide on every name; attach is the only clean route.
 
 All names and mount poses come from `zero_layout`, shared with `gen_bimanual_urdf.py`, because
 mujoco_ros2_control binds the URDF and the MJCF together by joint name and a mismatch fails
-quietly rather than loudly.
+quietly.
 
 Run:  MUJOCO_GL=egl python scripts/gen_bimanual_scene.py
 Out:  zero_description/mjcf/zero_bimanual.xml  +  scenes/bimanual.png
@@ -28,9 +28,9 @@ def build() -> mujoco.MjSpec:
     spec.modelname = "zero_bimanual"
     spec.compiler.degree = False  # radians, matching the arm model
 
-    # ⚠️ ABSOLUTE meshdir on purpose: the MJCF lands in zero_description/mjcf/ while the meshes
-    # live in robots/seeed_rebot_devarm/assets/, and a relative path breaks as soon as the file
-    # is opened from a different working directory. Regenerate if the project moves.
+    # Absolute meshdir on purpose: the MJCF lands in zero_description/mjcf/ while the meshes live
+    # in robots/seeed_rebot_devarm/assets/, so a relative path breaks as soon as the file is opened
+    # from a different working directory. Regenerate if the project moves.
     spec.meshdir = str(L.MENAGERIE_ARM.parent / "assets")
 
     # Offscreen framebuffer defaults to 640x480; larger renders silently fail without this.
@@ -58,15 +58,14 @@ def build() -> mujoco.MjSpec:
         name="floor", type=mujoco.mjtGeom.mjGEOM_PLANE, size=[0, 0, 0.05],
         material="groundplane",
     )
-    # NB: mujoco 3.8 dropped `directional` in favour of a `type` enum.
-    # offset from straight-overhead: a light at (0,0,2.5) shone directly into the `top`
-    # camera and blew the whole frame out.
+    # mujoco 3.8 dropped `directional` in favour of a `type` enum. Offset from straight overhead:
+    # a light at (0,0,2.5) shone into the `top` camera and blew the whole frame out.
     spec.worldbody.add_light(pos=[-0.6, 0.7, 2.2], dir=[0.3, -0.3, -1],
                              type=mujoco.mjtLightType.mjLIGHT_SPOT)
     spec.worldbody.add_light(pos=[0.9, 0.9, 2.0], dir=[-0.4, -0.4, -1],
                              type=mujoco.mjtLightType.mjLIGHT_SPOT)
 
-    # --- table: thin top at TABLE_TOP_Z + four legs (a solid 0.75 m block read as a crate) ---
+    # table: thin top at TABLE_TOP_Z plus four legs (a solid 0.75 m block reads as a crate)
     cx, cy = L.TABLE_CENTER_XY
     hx, hy, hz = L.TABLE_HALF
     top = spec.worldbody.add_body(name="table", pos=[cx, cy, L.TABLE_TOP_Z - hz])
@@ -81,12 +80,12 @@ def build() -> mujoco.MjSpec:
         ).add_geom(name=f"leg{i}_g", type=mujoco.mjtGeom.mjGEOM_CYLINDER,
                    size=[LEG_R, lz], material="leg_mat")
 
-    # --- two arms, prefixed ---
+    # two arms, prefixed
     for side in L.SIDES:
-        # ⚠️ RELOAD per side. Reusing one MjSpec for two attaches fails with "incompatible id
-        # in exclude array" -- this model ships <contact><exclude> pairs for adjacent links
-        # whose meshes interpenetrate, and attaching rewrites the child's element ids, so the
-        # second attach sees stale references.
+        # Reload per side. Reusing one MjSpec for two attaches fails with "incompatible id in exclude
+        # array": this model ships <contact><exclude> pairs for adjacent links whose meshes
+        # interpenetrate, and attaching rewrites the child's element ids, so the second attach sees
+        # stale references.
         arm = mujoco.MjSpec.from_file(str(L.MENAGERIE_ARM))
         frame = spec.worldbody.add_frame(pos=list(L.MOUNTS[side]), quat=[1, 0, 0, 0])
         spec.attach(arm, prefix=f"{side}_", frame=frame)
@@ -101,7 +100,7 @@ def _lookat(eye, target, up=(0.0, 0.0, 1.0)):
     MuJoCo cameras look along their own -z with +y up, so: z_cam = normalize(eye - target),
     x_cam = normalize(up x z_cam), y_cam = z_cam x x_cam. Returned flat as [x_cam, y_cam],
     which is what the `xyaxes` attribute wants. Computing it beats hand-writing nine numbers
-    and getting a sign wrong -- the previous project burned time on exactly that.
+    and getting a sign wrong.
     """
     eye, target, up = np.array(eye, float), np.array(target, float), np.array(up, float)
     z = eye - target
@@ -137,7 +136,7 @@ def add_cameras(spec: mujoco.MjSpec) -> None:
 def add_eef_sites(spec: mujoco.MjSpec) -> None:
     """The menagerie model ships ZERO sites, so there is no end-effector reference frame.
 
-    Anything pose-based -- IK, an ee_to_object observation, a reach reward -- needs one. Placed
+    Anything pose-based (IK, an ee_to_object observation, a reach reward) needs one. Placed
     ahead of `gripper_end` so it sits near the pinch point rather than at the wrist.
     """
     for side in L.SIDES:

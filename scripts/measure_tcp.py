@@ -2,17 +2,17 @@
 
     python scripts/measure_tcp.py
 
-WHY THIS IS MEASURED AND NOT CHOSEN. `eef_offset` moves the tool point (the pose the IK servos
-and the pose recorded as the action) from the gripper body out to where the fingers actually
-close. Guessing it is silently catastrophic: the reBot carried (0, 0, 0.10) -- 100 mm along the
-gripper's local +z -- while its fingers close 49 mm along local -x, putting the commanded point
-113 mm from the real pinch point. Every IK solve converged perfectly onto a point in mid-air
-beside the gripper, so the arm "reached" the object and the fingers shut on nothing, which reads
-as a grasp-tuning or friction problem and is neither. Panda's was 17.9 mm out, enough to bias
-every grasp but small enough that its long fingers still closed on things.
+`eef_offset` moves the tool point (the pose the IK servos and the pose recorded as the action)
+from the gripper body out to where the fingers actually close. Guessing it is silently
+catastrophic: the reBot carried (0, 0, 0.10), 100 mm along the gripper's local +z, while its
+fingers close 49 mm along local -x, putting the commanded point 113 mm from the real pinch
+point. Every IK solve converged onto a point in mid-air beside the gripper, so the arm "reached"
+the object and the fingers shut on nothing, which reads as a grasp-tuning or friction problem
+and is neither. Panda's was 17.9 mm out, enough to bias every grasp but small enough that its
+long fingers still closed on things.
 
-The grasp centre is the midpoint of the two finger bodies' collision AABBs, which is invariant to
-how far the gripper is open because the fingers move symmetrically.
+The grasp centre is the midpoint of the two finger bodies' collision AABBs, which is invariant
+to how far the gripper is open because the fingers move symmetrically.
 """
 
 from __future__ import annotations
@@ -32,7 +32,7 @@ def pinch_point(m, d, r, side: str) -> tuple:
     The previous version averaged the two finger bodies' collision-AABB centres, which sounds
     equivalent and is not: these finger meshes are asymmetric (one carries its knuckle), so the
     average sat 39 mm (reBot) / 22.7 mm (Panda) off the line between the pads. The jaws open
-    100 mm, so an object would still land between them SOMETIMES -- grasps succeeded often enough
+    100 mm, so an object would still land between them sometimes; grasps succeeded often enough
     to look like a tuning problem, while the failure mode was the gripper closing beside the can
     and flicking it away. The giveaway was measuring each finger's clearance separately: +9.5 mm
     on one pad, +99 mm on the other. Symmetric clearances are the acceptance test for this value.

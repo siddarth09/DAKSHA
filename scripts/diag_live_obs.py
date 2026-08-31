@@ -1,11 +1,10 @@
-"""Capture ONE live observation from the running sim and compare it against the dataset.
+"""Capture one live observation from the running sim and compare it against the dataset.
 
     bash scripts/diag_live_obs.sh
 
-WHY. A policy that tracks demos to 16 mm offline but barely moves in rollout is almost always
-fed a different observation than it trained on, not a bad policy. This dumps the live
-observation the policy node would see and diffs it -- per feature, numerically -- against the
-same feature in the training set. Guessing at conventions is what cost hours on the cameras.
+A policy that tracks demos to 16 mm offline but barely moves in rollout is usually being fed a
+different observation than it trained on. This dumps the observation the policy node would see
+and diffs it feature by feature against the same feature in the training set.
 """
 from __future__ import annotations
 
@@ -62,7 +61,7 @@ class Diag(Node):
                   f"({self.rgb_hits[c]/dt:5.1f} Hz)  "
                   f"{'PRESENT' if c in self.rgb else 'MISSING'}")
         if self.state is None or len(self.rgb) < len(CAMS):
-            print("!! incomplete -- is the sim running?")
+            print("!! incomplete: is the sim running?")
             raise SystemExit(1)
         print(f"encoding: {getattr(self, 'enc', '?')}")
         np.savez(OUT, state=self.state,

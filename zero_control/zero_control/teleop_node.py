@@ -5,35 +5,30 @@
         --params-file install/zero_bringup/share/zero_bringup/config/rebot_control.yaml \
         --params-file install/zero_bringup/share/zero_bringup/config/teleop.yaml
 
-WHY VELOCITY IN, ABSOLUTE POSE OUT. The recorded action is an absolute pose in the table frame
-(action.pack), because that is what makes it portable across embodiments -- a joint delta means
+Velocity in, absolute pose out. The recorded action is an absolute pose in the table frame
+(action.pack), because that is what makes it portable across embodiments; a joint delta means
 nothing to a different arm. But a stick is a velocity device: it reports "keep going", not "be
 here". So this node holds the target pose as state and integrates the sticks into it. Publishing
 raw stick deltas as if they were poses would command a 2 mm move per tick from wherever the arm
 happens to be, which drifts differently on every robot.
 
-DEAD-MAN SELECT. LB moves the left arm, RB the right; with neither held nothing moves. One
-button doing both jobs is deliberate -- an integrator with no dead-man keeps accumulating stick
+Dead-man select. LB moves the left arm, RB the right; with neither held nothing moves. One
+button doing both jobs is deliberate: an integrator with no dead-man keeps accumulating stick
 noise while you are looking at the screen, and the arm creeps. It also makes "which arm am I
 driving" unambiguous, which a mode toggle does not.
 
-ORIENTATION IS YAW-ONLY. The home poses are solved to aim the gripper down at the table, and
+Orientation is yaw-only. The home poses are solved to aim the gripper down at the table, and
 top-down pick/handover/place needs no roll or pitch. Full 6-DoF on a gamepad mostly produces
-demos with the wrist at a random angle. The published action is still the full SE(3) + grip;
+demos with the wrist at a random angle. The published action is still the full SE(3) plus grip;
 roll and pitch simply stay where the home pose put them.
 
-GRIPPERS LATCH. Y toggles the selected arm's gripper closed, and it STAYS closed until Y is
+Grippers latch. Y toggles the selected arm's gripper closed, and it stays closed until Y is
 pressed again. The first version mapped the opening directly to the analog trigger, which reads
-well on paper -- squeeze harder, grip harder -- and is wrong for this task: the operator has to
-hold the trigger for the entire carry, and the grip is only ever as steady as their finger. Any
-slip, or letting go to reach for another button, opens the gripper and drops the object. A carry
-lasts as long as the transport, which is exactly the thing a momentary control cannot express.
-
-The latch applies to whichever arm the dead-man has selected, and the selection is STICKY, so
-pressing Y with no dead-man held toggles the arm last driven -- you can grip without also having
-to hold the arm live. Analog trigger control is still available (set axis_grip_left/right in
-teleop.yaml), but it is off by default because mixing it with the latch makes a resting finger
-look like a broken latch.
+well on paper (squeeze harder, grip harder) and is wrong for this task: the operator has to hold
+the trigger for the entire carry, and the grip is only ever as steady as their finger. Any slip,
+or letting go to reach for another control, drops the object mid-demo. A latch makes "closed" a
+state rather than a continuous effort. Set `grip_axis` in teleop.yaml to re-enable the analog
+mapping.
 """
 
 from __future__ import annotations
@@ -67,19 +62,19 @@ class TeleopNode(Node):
         self.declare_parameter("yaw_speed", 0.9)        # rad/s at full stick
         self.declare_parameter("expo", 2.0)             # stick response curve
         self.declare_parameter("grip_speed", 0.7)       # fraction of full travel per second
-        # 0.03 -> 0.015 on 2026-08-26. The leash bounds how far the commanded target may lead
-        # the MEASURED pose, so it directly bounds the gap between `action` and `observation.state`
-        # in the recorded dataset. At 0.03 the v1 recording had 28% of frames more than 15 mm from
-        # their commanded pose (p90 29.5 mm, max 31.5 mm = exactly the leash). Mirage requires the
-        # achieved pose to be within 0.015 m of the desired pose at every timestep, and that is
-        # also what makes `action` usable as "the next pose to achieve" without fitting a forward
-        # dynamics model f(p, a) -> p'. 0.015 makes the dataset satisfy that by construction.
+        # 0.03 -> 0.015 on 2026-08-26. The leash bounds how far the commanded target may lead the measured
+        # pose, so it directly bounds the gap between `action` and `observation.state` in the recorded
+        # dataset. At 0.03 the v1 recording had 28% of frames more than 15 mm from their commanded pose
+        # (p90 29.5 mm, max 31.5 mm, exactly the leash). Mirage requires the achieved pose to be within
+        # 0.015 m of the desired pose at every timestep, and that is also what makes `action` usable as
+        # "the next pose to achieve" without fitting a forward dynamics model f(p, a) -> p'. 0.015 makes
+        # the dataset satisfy that by construction.
         self.declare_parameter("leash", 0.015)          # m the target may lead the arm
-        self.declare_parameter("leash_rot", 0.05)       # rad ditto -- see `leash` above
+        self.declare_parameter("leash_rot", 0.05)       # rad, same idea as `leash` above
         self.declare_parameter("ws_min", [-1.0, -1.0, 0.0])
         self.declare_parameter("ws_max", [1.0, 1.0, 2.0])
-        # Axis / button map. Defaults are the standard XInput layout, which is what joy_node
-        # reports for this pad; `ros2 run zero_control joy_probe` prints live values to check.
+        # Axis and button map. Defaults are the standard XInput layout, which is what joy_node reports
+        # for this pad; `ros2 run zero_control joy_probe` prints live values to check.
         self.declare_parameter("axis_x", 1)             # left stick Y -> +x (forward)
         self.declare_parameter("axis_y", 0)             # left stick X -> +y
         self.declare_parameter("axis_z", 4)             # right stick Y -> +z
@@ -215,13 +210,12 @@ class TeleopNode(Node):
             return
 
         if self._pressed("home"):
-            # A COMMANDED MOTION, not a teleport. Assigning the home pose straight into the
-            # target does not survive the leash below: the leash reels the target back to within
-            # `leash` of the arm and overwrites it, so the home pose is gone after one tick and
-            # what remains is a 3 cm nudge in whatever direction the first clamp happened to
-            # point. The arm then drifts instead of going home -- measured 200 mm off, worse than
-            # not pressing it. So home is a latched mode that walks the target home at the same
-            # rate the sticks would, which the leash follows happily.
+            # A commanded motion, not a teleport. Assigning the home pose straight into the target does
+            # not survive the leash below: the leash reels the target back to within `leash` of the arm
+            # and overwrites it, so the home pose is gone after one tick and what remains is a 3 cm nudge
+            # in whatever direction the first clamp happened to point. The arm then drifts instead of
+            # going home, 200 mm off, worse than not pressing it. So home is a latched mode that walks the
+            # target home at the same rate the sticks would, which the leash follows happily.
             self.homing = True
             self.get_logger().info("-> homing")
         if self._pressed("reseed"):
@@ -272,20 +266,19 @@ class TeleopNode(Node):
                 self.ws_min, self.ws_max)
             dyaw = yaw * self._axis("yaw")
             if dyaw:
-                # World-frame yaw: pre-multiply, so left/right on the stick always means the
-                # same direction on screen regardless of how the wrist is currently oriented.
+                # World-frame yaw: pre-multiply, so left/right on the stick always means the same direction
+                # on screen regardless of how the wrist is currently oriented.
                 self.rot[active] = _yaw(dyaw) @ self.rot[active]
 
-        # ── LEASH. The target may never lead the MEASURED pose by more than `leash`. The
-        # workspace box alone is not enough: it is the table, but an arm's reach is smaller than
-        # the table, so driving near a corner lets the target sail on into space the arm cannot
-        # follow. Measured without this: a 2 s push commanded 240 mm, the arm managed 182 mm, and
-        # the target sat 58 mm ahead -- so releasing the stick did not stop the arm, and it was
-        # still coasting while the OTHER arm was being driven, which reads exactly like
-        # cross-talk. Reeling the target in each tick makes the stick 1:1 (release and it stops;
-        # push into a reach limit and it simply stops instead of banking travel you must unwind)
-        # and keeps every recorded action one the arm actually achieved -- an unreachable target
-        # would be a mislabelled demo.
+        # Leash. The target may never lead the measured pose by more than `leash`. The workspace box
+        # alone is not enough: it is the table, but an arm's reach is smaller than the table, so
+        # driving near a corner lets the target sail on into space the arm cannot follow. Without
+        # this, a 2 s push commanded 240 mm, the arm managed 182 mm, and the target sat 58 mm ahead,
+        # so releasing the stick did not stop the arm and it was still coasting while the other arm
+        # was being driven, which reads like cross-talk. Reeling the target in each tick makes the
+        # stick 1:1 (release and it stops; push into a reach limit and it stops instead of banking
+        # travel you must unwind) and keeps every recorded action one the arm actually achieved, since
+        # an unreachable target would be a mislabelled demo.
         for side in SIDES:
             cur = self.ik[side].fk(self.q)
             d = self.pos[side] - cur.translation
@@ -299,21 +292,19 @@ class TeleopNode(Node):
             if a > lead_r:
                 self.rot[side] = cur.rotation @ pin.exp3(rerr * (lead_r / a))
 
-        # ── RATE-LIMITED GRIP. The latch is a boolean, and feeding it straight through steps the
-        # command from 1.0 to 0.0 in one tick, so a position actuator closes as fast as its force
-        # limit allows. Measured effect of ramping instead, on the can: the reBot's lift went
-        # 64 mm -> 84 mm, i.e. a materially more secure hold. Note the reason is NOT that a fast
-        # close swats the object away -- that was the obvious guess and the measurement rejects
-        # it, the object moves under 0.5 mm during closing either way (ramping actually moves it
-        # marginally MORE). Panda is unchanged at ~92 mm, so this buys nothing there. 0.5 s
-        # measured as good as 1.4 s, so grip_speed can be raised if the ramp feels sluggish.
-        # Opening ramps too: symmetric is one number to tune, and a slow release lets a placed
-        # object settle rather than being flicked.
+        # Rate-limited grip. The latch is a boolean, and feeding it straight through steps the command
+        # from 1.0 to 0.0 in one tick, so a position actuator closes as fast as its force limit allows.
+        # Ramping instead took the reBot's lift from 64 mm to 84 mm, a materially more secure hold. The
+        # reason is not that a fast close swats the object away: the object moves under 0.5 mm during
+        # closing either way, and ramping actually moves it marginally more. Panda is unchanged at
+        # ~92 mm, so this buys nothing there. 0.5 s measured as good as 1.4 s, so grip_speed can be
+        # raised if the ramp feels sluggish. Opening ramps too: symmetric is one number to tune, and a
+        # slow release lets a placed object settle rather than being flicked.
         rate = float(self.get_parameter("grip_speed").value) * self.dt
         for side in SIDES:
             idx = int(self.get_parameter(f"axis_grip_{side}").value)
             if idx >= 0:
-                # Analog trigger: the operator's finger IS the rate limit, so pass it through.
+                # Analog trigger: the operator's finger is the rate limit, so pass it through.
                 self.grip[side] = 1.0 - self._trigger(side)
             else:
                 goal = 0.0 if self.latched[side] else 1.0

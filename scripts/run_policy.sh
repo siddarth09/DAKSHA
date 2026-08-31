@@ -7,24 +7,23 @@
 #   2) then, in another terminal:  bash scripts/run_policy.sh
 #   3) press X on the gamepad to start/stop the policy (same button as the recorder)
 #
-# Args: $1 = checkpoint dir (default: the r32 LoRA run), $2 = replan horizon in steps (default 25).
+# Args: $1 = checkpoint dir, $2 = replan horizon in steps (default 25).
 #
-# `set -u` is deliberately NOT used: the ROS setup scripts reference unbound variables.
+# `set -u` is deliberately not used: the ROS setup scripts reference unbound variables.
 set -eo pipefail
 
 # xargs trims whitespace: a trailing space after a line-continuation backslash makes the shell
-# pass a single-space argument, which `${1:-default}` treats as SET. That reached rcl as
-# `-p checkpoint:=" "`, which it parses as unset, and the node then died with a confusing
+# pass a single-space argument, which `${1:-default}` treats as set. That reached rcl as
+# `-p checkpoint:=" "`, which it parses as unset, and the node died with
 # "parameter 'checkpoint' is not initialized".
 CKPT="$(printf '%s' "${1:-}" | xargs || true)"
 CKPT="${CKPT:-$HOME/zero_runs/crossv2_full_c25/checkpoints/last/pretrained_model}"
 STEPS="$(printf '%s' "${2:-}" | xargs || true)"
 STEPS="${STEPS:-25}"
 
-# Which robot to drive. The policy itself is embodiment-agnostic -- it emits the 20-dim absolute
-# EEF pose from action.py, and each robot's own eef_control_node turns that into joint commands
-# through its own IK. Only the params file differs. This is the cross-embodiment claim, so it is
-# worth stating plainly: NOTHING about the checkpoint changes here.
+# Which robot to drive. The policy is embodiment-agnostic: it emits the 20-dim absolute EEF pose
+# from action.py, and each robot's own eef_control_node turns that into joint commands through
+# its own IK. Only the params file differs; nothing about the checkpoint changes here.
 ROBOT="${ROBOT:-rebot}"
 
 if [ ! -d "$CKPT" ]; then
@@ -42,27 +41,27 @@ source "$WS/install/setup.bash"
 
 # The policy needs lerobot_env (torch cu128 for sm_120, lerobot 0.5.1 for PEFT loading). That venv
 # is built with include-system-site-packages=false, so ROS's site-packages must be added by hand.
-# zero_control comes from SOURCE because the install tree holds only an egg-link, which the venv's
-# interpreter does not process -- this also means node edits apply without a colcon build.
+# zero_control comes from source because the install tree holds only an egg-link, which the venv's
+# interpreter does not process. That also means node edits apply without a colcon build.
 export PYTHONPATH="$WS/src/ZERO/zero_control:${PYTHONPATH:-}"
 
-# The X button comes from /joy, which is published by the `joy` driver -- NOT by zero_control's
-# teleop node. rebot_teleop.launch.py starts both, so using it here would leave teleop publishing
-# /zero/eef_target at 50 Hz and holding the home pose, which silently overrides every policy
-# command (measured: policy asked for 162 mm, arm moved 2.3 mm). So start joy_node alone, and only
-# if nothing is already publishing /joy. autorepeat_rate matches the teleop launch: joy_node
-# otherwise publishes only on CHANGE, so a button press can be missed.
+# The X button comes from /joy, published by the `joy` driver, not by zero_control's teleop node.
+# rebot_teleop.launch.py starts both, so using it here would leave teleop publishing
+# /zero/eef_target at 50 Hz and holding the home pose, which overrides every policy command (the
+# policy asked for 162 mm and the arm moved 2.3 mm). So start joy_node alone, and only if nothing
+# is already publishing /joy. autorepeat_rate matches the teleop launch: joy_node otherwise
+# publishes only on change, so a button press can be missed.
 if ! ros2 topic info /joy 2>/dev/null | grep -q "Publisher count: [1-9]"; then
   echo "starting joy_node (nothing is publishing /joy)"
   ros2 run joy joy_node --ros-args \
     -p deadzone:=0.05 -p autorepeat_rate:=50.0 -p coalesce_interval_ms:=5 &
   JOY_PID=$!
-  # NOT a trap + exec: `exec` replaces this shell, so the trap is discarded and Ctrl-C never runs
-  # it. That leaked five joy_node processes over one debugging session. Run the node as a CHILD
-  # instead and clean up after it returns.
+  # Not a trap plus exec: `exec` replaces this shell, so the trap is discarded and Ctrl-C never
+  # runs it, which leaked five joy_node processes over one debugging session. Run the node as a
+  # child instead and clean up after it returns.
   sleep 2
 else
-  echo "/joy already has a publisher -- reusing it"
+  echo "/joy already has a publisher, reusing it"
 fi
 
 # Anything publishing /zero/eef_target will fight the policy for the arm; the node itself also

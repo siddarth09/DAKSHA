@@ -2,18 +2,16 @@
 
     /home/sid/lerobot_env/bin/python scripts/eval_chunk_error.py
 
-WHY. The training log reports a flow-matching loss on NORMALISED, zero-padded 32-dim vectors
-(0.094 at step 50k). That number cannot be compared against anything physical and does not say
-whether the policy is accurate enough to close a gripper on a 66 mm can. This unnormalises the
-predicted chunk and reports error in the units the task is actually specified in.
+The training log reports a flow-matching loss on normalised, zero-padded 32-dim vectors, which
+says nothing about whether the policy is accurate enough to close a gripper on a 66 mm can. This
+unnormalises the predicted chunk and reports the error in the units the task is specified in.
 
-WHAT THIS IS NOT. Every episode here was in the training set, so this measures FIT, not
-generalisation. It answers "did the checkpoint learn the demonstrations" and "which can positions
-fit worst", not "will it work on a new can position". A real number needs held-out episodes or a
-sim rollout.
+Every episode here was in the training set, so this measures fit, not generalisation. It answers
+"did the checkpoint learn the demonstrations" and "which can positions fit worst". A real number
+needs held-out episodes or a sim rollout.
 
-Error is broken down by position in the chunk: SmolVLA predicts 50 actions per forward pass, which
-at 10 fps is 5 SECONDS of open-loop motion, so error at k=49 matters as much as at k=0.
+Error is broken down by position in the chunk: SmolVLA predicts 50 actions per forward pass,
+which at 10 fps is 5 s of open-loop motion, so error at k=49 matters as much as at k=0.
 """
 
 from __future__ import annotations
@@ -104,9 +102,9 @@ def main() -> None:
     for k in (0, 4, 9, 19, 29, 39, 49):
         if k < chunk:
             print(f"   k={k:<3} t=+{k/fps:.1f}s   {np.mean(by_k[k]):6.1f} mm")
-    # reBot jaw opens to 100 mm (measured in reach_gate.py); the can is OBJECT_WIDTH = 66 mm.
-    # So the TCP has (100-66)/2 = 17 mm of lateral clearance per side at the grasp. Position
-    # error above that means the jaw closes beside the can or knocks it over.
+    # reBot jaw opens to 100 mm (see reach_gate.py), the can is OBJECT_WIDTH = 66 mm, so the TCP
+    # has (100-66)/2 = 17 mm of lateral clearance per side. Position error above that means the
+    # jaw closes beside the can or knocks it over.
     print("\nreBot jaw 100 mm vs 66 mm can -> only 17 mm of lateral clearance per side at the "
           "grasp.")
 

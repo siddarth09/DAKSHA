@@ -10,28 +10,26 @@ PUBLISHES
     /{side}_gripper_controller/commands  Float64MultiArray   joint positions
     /zero/ik_status                      Float64MultiArray[6]  see below
 
-ONE NODE, EVERY ROBOT. Nothing here is reBot- or Panda-specific: joint names, EEF frame, gripper
-range and URDF all come from `zero_layout.ROBOTS[robot]`. That is deliberate -- if the source and
-target embodiments ran different control code, an implementation difference could masquerade as a
-transfer result, and the transfer number is the entire point of the project.
+One node, every robot. Nothing here is reBot- or Panda-specific: joint names, EEF frame, gripper
+range and URDF all come from `zero_layout.ROBOTS[robot]`. If the source and target embodiments
+ran different control code, an implementation difference could masquerade as a transfer result,
+and the transfer number is the point of the project.
 
-/zero/ik_status IS NOT OPTIONAL: [left_pos_err, left_rot_err, left_clamped,
-right_pos_err, right_rot_err, right_clamped]. An unreachable target does not raise -- IK returns
-a large residual and a clamped step, the arm stalls short, and it looks exactly like the policy
-failing. On the previous project that misdiagnosis cost days: the giveaway (a closest-approach
-distance pinned at the same value across every hyperparameter) was read as a learning problem for
-far too long. Log it, always.
+/zero/ik_status is not optional: [left_pos_err, left_rot_err, left_clamped, right_pos_err,
+right_rot_err, right_clamped]. An unreachable target does not raise. IK returns a large residual
+and a clamped step, the arm stalls short, and it looks exactly like the policy failing. On the
+previous project that misdiagnosis cost days, because a closest-approach distance pinned at the
+same value across every hyperparameter was read as a learning problem. Log it, always.
 
-STARTUP HOLDS HOME, NOT THE MEASUREMENT. Until a target arrives the node commands the `home`
-configuration from the registry. Commanding the measured configuration instead looks safer -- it
-cannot snap on launch -- but it is a creep: a position command equal to where the arm already is
+Startup holds home, not the measurement. Until a target arrives the node commands the `home`
+configuration from the registry. Commanding the measured configuration looks safer, since it
+cannot snap on launch, but it creeps: a position command equal to where the arm already is
 exerts no restoring force, so gravity pulls it a little further every tick and the sagged pose
-becomes the next command. Measured here: a monotonic 0.64 -> 0.70 rad drift from home over 45 s,
-still climbing, with no equilibrium. It also cost a day of debugging. An EEF target computed from
-the home keyframe was 574 mm from a right arm that had quietly crept away, which reads exactly
-like an IK or controller fault -- the solver, the joint limits and the MuJoCo closed loop all
-tested clean in isolation. Holding a fixed reference also makes the start pose repeatable across
-episodes, which the dataset needs.
+becomes the next command. That gave a monotonic 0.64 -> 0.70 rad drift from home over 45 s with
+no equilibrium, and an EEF target computed from the home keyframe was then 574 mm from a right
+arm that had quietly crept away, which reads like an IK or controller fault (the solver, the
+joint limits and the MuJoCo closed loop all tested clean in isolation). Holding a fixed
+reference also makes the start pose repeatable across episodes, which the dataset needs.
 """
 
 from __future__ import annotations
@@ -54,10 +52,10 @@ from zero_control.ik import ArmIK
 class EefControlNode(Node):
     def __init__(self) -> None:
         super().__init__("zero_eef_control")
-        # Everything robot-specific arrives as PARAMETERS, generated from zero_layout.ROBOTS by
-        # scripts/gen_bringup.py into config/<robot>_control.yaml. The node imports nothing from
-        # the repo, so it behaves identically from source or from an install tree -- and
-        # zero_layout stays the single source of truth.
+        # Everything robot-specific arrives as parameters, generated from zero_layout.ROBOTS by
+        # scripts/gen_bringup.py into config/<robot>_control.yaml. The node imports nothing from the repo,
+        # so it behaves identically from source or from an install tree, and zero_layout stays the single
+        # source of truth.
         self.declare_parameter("robot", "rebot")
         self.declare_parameter("rate_hz", 100.0)
         self.declare_parameter("damping", 0.05)
@@ -109,11 +107,10 @@ class EefControlNode(Node):
 
         self.q = np.zeros(self.ik["left"].model.nq)   # full-model config, kept in sync
         self.q_meas = np.zeros(self.ik["left"].model.nq)  # PURE measurement, for /zero/eef_state
-        # qpos indices of the gripper joints, for reporting the MEASURED aperture before any
-        # command has arrived -- see _publish_state.
-        # Derived from the model, not hardcoded: the two robots name these differently (reBot
-        # gripper_joint1/2, Panda finger_joint1/2). A gripper joint is any joint under this side's
-        # prefix that is not one of its arm joints.
+        # qpos indices of the gripper joints, for reporting the measured aperture before any command has
+        # arrived (see _publish_state). Derived from the model, not hardcoded: the two robots name these
+        # differently (reBot gripper_joint1/2, Panda finger_joint1/2). A gripper joint is any joint under
+        # this side's prefix that is not one of its arm joints.
         model = self.ik["left"].model
         self.grip_qidx: dict[str, list[int]] = {}
         for side in SIDES:
@@ -131,11 +128,11 @@ class EefControlNode(Node):
         self.create_subscription(JointState, "/joint_states", self._on_js, 10)
         self.create_subscription(Float64MultiArray, "/zero/eef_target", self._on_target, 10)
         self.status_pub = self.create_publisher(Float64MultiArray, "/zero/ik_status", 10)
-        # The MEASURED 20-dim observation, for consumers that must not duplicate the kinematics.
-        # policy_node needs this: it runs under lerobot_env, whose numpy 2.x cannot load ROS's
-        # pinocchio (built against numpy 1.x), so it cannot do its own FK. Publishing it here
-        # also keeps this node the single source of FK truth, rather than a second
-        # implementation that could drift from the one the dataset was recorded with.
+        # The measured 20-dim observation, for consumers that must not duplicate the kinematics.
+        # policy_node needs this: it runs under lerobot_env, whose numpy 2.x cannot load ROS's pinocchio
+        # (built against numpy 1.x), so it cannot do its own FK. Publishing it here also keeps this node
+        # the single source of FK truth rather than a second implementation that could drift from the one
+        # the dataset was recorded with.
         self.state_pub = self.create_publisher(Float64MultiArray, "/zero/eef_state", 10)
 
         hz = float(self.get_parameter("rate_hz").value)
@@ -171,7 +168,7 @@ class EefControlNode(Node):
         if not self.have_js:
             return
         if self.target is None:
-            # Hold HOME, not the measurement -- see the module docstring. Commanding the measured
+            # Hold home, not the measurement (see the module docstring). Commanding the measured
             # configuration is a gravity creep with no equilibrium.
             for side in SIDES:
                 self._publish_arm(side, self.home[side])
@@ -192,19 +189,20 @@ class EefControlNode(Node):
     def _publish_state(self) -> None:
         """Publish the measured 20-dim observation, identical to record_node._measured_state.
 
-        Poses are FK on the MEASURED joints (self.q_meas, not self.q -- the latter carries the
-        servo's own IK result). Grip channels are the LAST COMMANDED grip, not a sensor, because
+        Poses are FK on the measured joints (self.q_meas, not self.q, which carries the servo's
+        own IK result). Grip channels are the last commanded grip, not a sensor reading, because
         that is what the recorder stored and therefore what a policy trained against.
         """
         fk = {s: self.ik[s].fk(self.q_meas) for s in SIDES}      # once per side, at 100 Hz
         poses = {s: (fk[s].translation, fk[s].rotation) for s in SIDES}
-        # ⚠️ BEFORE THE FIRST COMMAND, REPORT THE MEASURED APERTURE -- NOT 0.0. Defaulting to 0.0
-        # meant "fully closed", and in the training set a closed gripper only ever co-occurs with
-        # the can already held mid-episode. So the policy's first observation was arm-at-home +
-        # jaw-closed + can-on-table, a combination absent from all 40k frames. Measured: zeroing
-        # these two channels cuts the predicted chunk travel by 4-16x (145 -> 32 mm on ep 4,
-        # 66 -> 4 mm on ep 33), i.e. it is what made the deployed policy sit still.
-        # Once a target exists this reports the last COMMANDED grip, which is what
+        # Before the first command, report the measured aperture, not 0.0. Defaulting to 0.0 meant
+        # "fully closed", and in the training set a closed gripper only ever co-occurs with the can
+        # already held mid-episode. So the policy's first observation was arm-at-home + jaw-closed +
+        # can-on-table, a combination absent from all 40k frames. Zeroing these two channels cuts the
+        # predicted chunk travel by 4-16x (145 -> 32 mm on ep 4, 66 -> 4 mm on ep 33), which is what made
+        # the deployed policy sit still.
+        #
+        # Once a target exists this reports the last commanded grip, which is what
         # record_node._measured_state stored and therefore what the policy trained against.
         grips = {}
         for s in SIDES:
@@ -223,9 +221,9 @@ class EefControlNode(Node):
         self.arm_pub[side].publish(Float64MultiArray(data=[float(v) for v in q_arm]))
 
     def _publish_grip(self, side: str, grip: float) -> None:
-        # grip is normalised [0,1]; 0 = closed, 1 = open. One value per COMMANDED gripper joint,
-        # which is 2 on the reBot (two real actuators) and 1 on Panda (one actuator drives both
-        # fingers through an <equality>).
+        # grip is normalised [0,1]; 0 = closed, 1 = open. One value per commanded gripper joint, which is
+        # 2 on the reBot (two real actuators) and 1 on Panda (one actuator drives both fingers through an
+        # <equality>).
         g = self.grip_lo + float(np.clip(grip, 0.0, 1.0)) * (self.grip_hi - self.grip_lo)
         self.grip_pub[side].publish(Float64MultiArray(data=[g] * self.grip_ctrl_n))
 

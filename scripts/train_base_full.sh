@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# SmolVLA fine-tune WITHOUT LoRA -- the reference recipe. Run: bash scripts/train_base_full.sh
+# SmolVLA fine-tune without LoRA, the reference recipe. Run: bash scripts/train_base_full.sh
 
 set -eo pipefail
 
@@ -10,10 +10,10 @@ DATA="${3:-$HOME/zero_data/cross_base}"
 
 echo "free space on \$HOME: $(df -h "$HOME" | awk 'NR==2{print $4}')"
 
-# ⚠️ ABSOLUTE PATH, NOT A BARE `lerobot-train`. There are two installs: this venv's 0.5.1 and an
-# editable 0.4.2 under ~/.local -> /home/sid/lerobot. A bare command resolves by PATH, so forgetting
-# to activate the venv silently trains with 0.4.2 -- which has no SmolVLA PEFT support and a torch
-# built for the wrong GPU arch. Hard-code it so the script cannot pick the wrong one.
+# Absolute path, not a bare `lerobot-train`. There are two installs: this venv's 0.5.1 and an
+# editable 0.4.2 under ~/.local -> /home/sid/lerobot. A bare command resolves by PATH, so
+# forgetting to activate the venv trains with 0.4.2, which has no SmolVLA PEFT support and a
+# torch built for the wrong GPU arch. Hard-code it so the script cannot pick the wrong one.
 /home/sid/lerobot_env/bin/lerobot-train \
   --dataset.repo_id=zero/cross \
   --dataset.root="$DATA" \

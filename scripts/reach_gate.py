@@ -1,25 +1,25 @@
-"""PHASE 0.5 GO/NO-GO GATE — can a task built for two reBots be performed by a G1?
+"""Phase 0.5 go/no-go gate: can a task built for two reBots be performed by a G1?
 
 Three questions, answered by measurement before any policy code exists:
 
-  A. APERTURE  — what object sizes can BOTH a reBot parallel jaw and a Dex3 hold?
-  B. OVERLAP   — is there table-surface volume reachable by both reBots AND both G1 arms?
-  C. VERDICT   — the concrete box to place objects in.
+  A. Aperture. What object sizes can both a reBot parallel jaw and a Dex3 hold?
+  B. Overlap.  Is there table-surface volume reachable by both reBots and both G1 arms?
+  C. Verdict.  The concrete box to place objects in.
 
-WHY THIS RUNS FIRST. The previous project spent days on a policy that could not succeed: its
-target was kinematically unreachable for a grasped object, and the tell-tale (closest approach
-pinned at 0.069-0.086 m against a 0.05 m threshold, IDENTICAL across every tilt cap, every
-curriculum rung, every checkpoint) was read as a learning failure for far too long. A learning
-failure moves when you change a knob. A kinematic one does not.
+This runs first because the previous project spent days on a policy that could not succeed: its
+target was kinematically unreachable for a grasped object, and the tell (closest approach pinned
+at 0.069-0.086 m against a 0.05 m threshold, identical across every tilt cap, every curriculum
+rung and every checkpoint) was read as a learning failure for too long. A learning failure moves
+when you change a knob. A kinematic one does not.
 
-TWO METHODOLOGICAL RULES, both learned the hard way while writing this script:
+Two rules the script follows:
 
-  1. DO NOT OPTIMISE THE PLACEMENT. A first version swept the G1 pelvis to maximise overlap
-     litres. It returned pelvis x=-0.60, z=0.60 -- both pinned to their sweep bounds -- with the
-     G1 facing AWAY from the table and reaching backwards over its own shoulders. Maximising
-     volume is not the objective. Fix the robot in a stance it can physically hold, then VERIFY.
-  2. EXCLUDE THE OBSTACLES. Before the keep-out below, the "best" task volume was centred on
-     x in [-0.40,-0.08] -- exactly where the reBot bases are bolted to the table. Both robots can
+  1. Do not optimise the placement. A first version swept the G1 pelvis to maximise overlap
+     litres and returned pelvis x=-0.60, z=0.60, both pinned to their sweep bounds, with the G1
+     facing away from the table and reaching backwards over its own shoulders. Maximising volume
+     is not the objective. Fix the robot in a stance it can physically hold, then verify.
+  2. Exclude the obstacles. Before the keep-out below, the "best" task volume was centred on
+     x in [-0.40,-0.08], exactly where the reBot bases are bolted to the table. Both robots can
      reach their own hardware; that is not a workspace.
 
 Run:  MUJOCO_GL=egl python scripts/reach_gate.py
@@ -36,20 +36,19 @@ G1_XML = "/home/sid/mujoco_menagerie/unitree_g1/g1_with_hands.xml"
 VOXEL = 0.04            # 4 cm, matching the earlier handover reachability study
 N_SAMPLES = 60_000      # per arm
 SLAB = 0.25             # task volume height above the table top
-BASE_KEEPOUT = 0.18     # radius round each reBot base -- physical obstacle
+BASE_KEEPOUT = 0.18     # radius round each reBot base, a physical obstacle
 G1_PELVIS_Z = 0.79      # the G1's real standing pelvis height
 G1_YAW = np.pi          # faces -x: stands across the table, looking at the arms
 DOWN_CONE_DEG = 35.0
 
 # Neither the reBot nor the G1 model ships an end-effector site. These G1 palm offsets on
-# *_wrist_yaw_link were derived empirically in the previous project as the midpoint of the thumb
-# pad and the index+middle pad centroid at a ~7 cm aperture, verified as strictly bracketed by
-# all three pads. Reused here rather than re-guessed.
+# *_wrist_yaw_link were derived in the previous project as the midpoint of the thumb pad and the
+# index+middle pad centroid at a ~7 cm aperture, verified as strictly bracketed by all three pads.
+# Reused here rather than re-guessed.
 G1_PALM_OFFSET = {"left": (0.1152, -0.0845, 0.0024), "right": (0.1152, 0.0845, -0.0024)}
 
-# Voxel coords are packed into one int64 so set ops become np.intersect1d. The obvious
-# implementation (a Python set of tuples) needed ~1000 x 60k tuple constructions and never
-# finished the sweep.
+# Voxel coords are packed into one int64 so set ops become np.intersect1d. A Python set of tuples
+# needed ~1000 x 60k tuple constructions and never finished the sweep.
 _OFF, _SPAN = 1 << 12, 1 << 13
 
 
@@ -81,7 +80,7 @@ def _ids(m, obj, names):
 
 def measure_apertures() -> None:
     print("=" * 76)
-    print("A. GRIPPER APERTURE — measured from the models, not from datasheets")
+    print("A. GRIPPER APERTURE, measured from the models, not from datasheets")
     print("=" * 76)
     m = mujoco.MjModel.from_xml_path(str(L.MENAGERIE_ARM))
     d = mujoco.MjData(m)
@@ -174,7 +173,7 @@ def main() -> None:
           f"{BASE_KEEPOUT*100:.0f} cm keep-out round each base: "
           f"{len(both)} vox ({len(both)*VOXEL**3*1000:.2f} L)")
     if len(both) == 0:
-        print("\n  ✗ NO-GO — the two reBots share no usable table volume. Widen BASE_SEP.")
+        print("\n  NO-GO: the two reBots share no usable table volume. Widen BASE_SEP.")
         return
 
     cw, sw = np.cos(G1_YAW), np.sin(G1_YAW)
@@ -199,13 +198,13 @@ def main() -> None:
     print("C. VERDICT")
     print("=" * 76)
     if n == 0:
-        print("  ✗ NO-GO — no common table volume at any standoff.")
+        print("  NO-GO: no common table volume at any standoff.")
         print("    Levers: lower TABLE_TOP_Z, move the reBot mounts forward (BASE_X),")
         print("            or let the G1 stand at a non-zero y.")
         return
     P = unkey(k) * VOXEL
     ctr = P.mean(axis=0) + VOXEL / 2
-    print(f"  ✓ GO — {n} vox = {n*VOXEL**3*1000:.2f} L shared, at standoff {so:.2f} m")
+    print(f"  GO: {n} vox = {n*VOXEL**3*1000:.2f} L shared, at standoff {so:.2f} m")
     print(f"    G1 pelvis      : [{edge+so:+.2f}, 0.00, {G1_PELVIS_Z}] yaw "
           f"{np.degrees(G1_YAW):.0f}°")
     for i, ax in enumerate("xyz"):
@@ -215,7 +214,7 @@ def main() -> None:
     frac = float((down > np.cos(np.deg2rad(DOWN_CONE_DEG))).mean())
     print(f"\n  reBot poses within {DOWN_CONE_DEG:.0f}° of straight-down approach: {frac*100:.1f}% "
           f"of random configs")
-    print("  ⚠️  G1 approach-axis convention NOT asserted — needs its own check before P1.")
+    print("  G1 approach-axis convention not asserted; needs its own check before P1.")
 
 
 if __name__ == "__main__":

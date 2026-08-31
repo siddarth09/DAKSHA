@@ -1,13 +1,13 @@
-"""Generate a dual-arm URDF (+ ros2_control block) for any registered embodiment.
+"""Generate a dual-arm URDF (plus ros2_control block) for any registered embodiment.
 
     python scripts/gen_urdf.py rebot
     python scripts/gen_urdf.py panda
 
-WHY GENERATE. Neither source URDF has a xacro macro or prefix support, so two copies collide on
-every link and joint name. Generating means no hand-maintained duplication, it is re-runnable
-when upstream changes, and the mount poses / joint names / camera names all come from
-`zero_layout` -- the same module the MJCF generator uses, so the two descriptions cannot drift.
-`scripts/check_parity.py <robot>` asserts they haven't.
+Neither source URDF has a xacro macro or prefix support, so two copies collide on every link and
+joint name. Generating means no hand-maintained duplication, it is re-runnable when upstream
+changes, and the mount poses, joint names and camera names all come from `zero_layout`, the same
+module the MJCF generator uses, so the two descriptions cannot drift.
+`scripts/check_parity.py <robot>` asserts they have not.
 
 Out:  zero_description/urdf/zero_<robot>.urdf
 """
@@ -63,9 +63,9 @@ def prefix_side(arm: ET.Element, side: str, r: dict) -> list[ET.Element]:
                     m = remap.fullmatch(fn)
                     if m:
                         part = m.group(1)
-                        # A trailing `_c` marks a COLLISION mesh in the converter's naming, and
-                        # menagerie ships those as .stl (`link0.stl`), not `_c.obj`. Visual
-                        # meshes keep their index and stay .obj (`link0_0.obj`).
+                        # A trailing `_c` marks a collision mesh in the converter's naming, and menagerie ships those
+                        # as .stl (`link0.stl`), not `_c.obj`. Visual meshes keep their index and stay .obj
+                        # (`link0_0.obj`).
                         fn = _remap_part(part)
                 g.set("filename", f"package://zero_description/meshes/{fn}")
         out.append(el)
@@ -73,8 +73,8 @@ def prefix_side(arm: ET.Element, side: str, r: dict) -> list[ET.Element]:
     for joint in arm.findall("joint"):
         p = joint.find("parent")
         c = joint.find("child")
-        # A joint touching a skipped link (Panda's world->link0 weld) is dropped: our own mount
-        # joint replaces it.
+        # A joint touching a skipped link (Panda's world->link0 weld) is dropped; our own mount joint
+        # replaces it.
         if (p is not None and p.get("link") in skip) or (c is not None and c.get("link") in skip):
             continue
         el = copy.deepcopy(joint)
@@ -97,24 +97,24 @@ def add_ros2_control(robot: ET.Element, key: str) -> None:
     hw = ET.SubElement(rc, "hardware")
     ET.SubElement(hw, "plugin").text = "mujoco_ros2_control/MujocoSystemInterface"
 
-    # ⚠️ `$(find ...)`, not `package://`. The plugin does NOT resolve package:// -- it hands the
-    # string straight to the MuJoCo loader and dies with "MuJoCo model file 'package://...' does
-    # not exist!". xacro expands $(find pkg) into an absolute path BEFORE the plugin sees it, so
-    # the launch must pipe this URDF through xacro. That is how Panda_mujoco does it, and it beats
-    # baking in /home/sid/... which breaks the moment the project moves.
+    # `$(find ...)`, not `package://`. The plugin does not resolve package://; it hands the string
+    # straight to the MuJoCo loader and dies with "MuJoCo model file 'package://...' does not exist!".
+    # xacro expands $(find pkg) into an absolute path before the plugin sees it, so the launch must
+    # pipe this URDF through xacro. That is how Panda_mujoco does it, and it beats baking in
+    # /home/sid/... which breaks the moment the project moves.
     ET.SubElement(hw, "param", {"name": "mujoco_model"}).text = (
         f"$(find zero_description)/mjcf/zero_{key}.xml")
     # Faster-than-realtime stepping, for data collection and eval sweeps.
     ET.SubElement(hw, "param", {"name": "sim_speed_factor"}).text = "1.0"
     ET.SubElement(hw, "param", {"name": "camera_publish_rate"}).text = f"{L.CAM_RATE_HZ}"
-    # Start-position override: the launch writes this file from its can_x/can_y/can_yaw
-    # arguments before the sim starts. The PATH is fixed here because hardware params cannot be
-    # set from the command line; only the file's contents vary per run.
+    # Start-position override: the launch writes this file from its can_x/can_y/can_yaw arguments
+    # before the sim starts. The path is fixed here because hardware params cannot be set from the
+    # command line; only the file's contents vary per run.
     ET.SubElement(hw, "param", {"name": "override_start_position_file"}).text = str(
         L.start_override_path(key))
-    # Without this the sim starts at qpos=0 -- arms bolt upright, which is exactly what the first
-    # launch showed. gen_scene.py writes a `home` keyframe holding the searched per-side poses
-    # plus the object's placed pose. (mujoco_system_interface.cpp:1353 reads this param.)
+    # Without this the sim starts at qpos=0 and the arms bolt upright. gen_scene.py writes a `home`
+    # keyframe holding the searched per-side poses plus the object's placed pose.
+    # (mujoco_system_interface.cpp:1353 reads this param.)
     ET.SubElement(hw, "param", {"name": "initial_keyframe"}).text = "home"
 
     for name in L.robot_prefixed_ros2_joints(key):
@@ -123,13 +123,13 @@ def add_ros2_control(robot: ET.Element, key: str) -> None:
         for iface in ("position", "velocity"):
             ET.SubElement(j, "state_interface", {"name": iface})
 
-    # Cameras publish ONLY if a <sensor> of the same name as the MJCF <camera> appears here.
-    # No extra plugin: image/info/depth publishing lives in the core system interface.
-    # ── FINGERTIP F/T SENSORS. mujoco_ros2_control maps a <sensor mujoco_type="fts"> named X
-    # onto MJCF sensors X_force / X_torque, and exports exactly six state interfaces named
-    # force.x/y/z and torque.x/y/z -- that spelling is checked literally in the plugin, so a
-    # typo silently drops the axis rather than erroring. force_torque_sensor_broadcaster reads
-    # those and republishes a WrenchStamped.
+    # Cameras publish only if a <sensor> of the same name as the MJCF <camera> appears here. No extra
+    # plugin: image/info/depth publishing lives in the core system interface.
+    #
+    # Fingertip F/T sensors: mujoco_ros2_control maps a <sensor mujoco_type="fts"> named X onto MJCF
+    # sensors X_force / X_torque, and exports exactly six state interfaces named force.x/y/z and
+    # torque.x/y/z. That spelling is checked literally in the plugin, so a typo drops the axis rather
+    # than erroring. force_torque_sensor_broadcaster reads those and republishes a WrenchStamped.
     for sensor_name, _ in L.ft_sensors(key):
         sen = ET.SubElement(rc, "sensor", {"name": sensor_name})
         ET.SubElement(sen, "param", {"name": "mujoco_type"}).text = "fts"

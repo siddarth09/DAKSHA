@@ -4,24 +4,25 @@
     both hands:                              20
 
 This lives in SE(3) x R. `pos` is the translation in R^3; `rot6d` encodes the SO(3) rotation as
-the first two COLUMNS of the rotation matrix, re-orthonormalised on read; `grip` is a normalised
+the first two columns of the rotation matrix, re-orthonormalised on read; `grip` is a normalised
 [0,1] open/close scalar and is not part of SE(3) at all.
 
-WHY rot6d AND NOT QUATERNION OR EULER. Both minimal parameterisations of SO(3) are discontinuous:
-quaternions double-cover (q and -q are the same rotation, so a regression target flips sign
-arbitrarily) and Euler angles gimbal-lock. rot6d is deliberately over-parameterised -- 9 numbers
-for 6 DoF -- to stay continuous everywhere, which is what a network needs to regress against.
-(Zhou et al. 2019, On the Continuity of Rotation Representations in Neural Networks.)
+rot6d rather than a quaternion or Euler angles, because both minimal parameterisations of SO(3)
+are discontinuous: quaternions double-cover (q and -q are the same rotation, so a regression
+target flips sign arbitrarily) and Euler angles gimbal-lock. rot6d is deliberately
+over-parameterised, 9 numbers for 6 DoF, to stay continuous everywhere, which is what a network
+needs to regress against. (Zhou et al. 2019, On the Continuity of Rotation Representations in
+Neural Networks.)
 
-WHY ABSOLUTE, NOT DELTAS. Poses are absolute in the world/table frame, so nothing drifts and a
+Absolute, not deltas. Poses are absolute in the world/table frame, so nothing drifts and a
 recorded demo means the same thing on any robot. Gamepad input is naturally a delta; integrating
-delta -> absolute happens in the teleop node, never in the dataset.
+delta to absolute happens in the teleop node, never in the dataset.
 
-WHY THIS IS THE TRANSFER MECHANISM. reBot (6-DoF + parallel jaw), Panda (7-DoF + parallel jaw)
-and G1 (7-DoF + 3-finger hand) share NO joint space. They share this. The identical 20-vector
-goes into each robot's own IK and comes out as a completely different joint trajectory -- that
-one swap is the whole of cross-embodiment here. It is also why joint positions must never enter
-the policy's observation: the moment they do it stops transferring.
+This is the transfer mechanism. reBot (6-DoF + parallel jaw), UR5e (6-DoF + the same jaw) and G1
+(7-DoF + 3-finger hand) share no joint space. They share this. The identical 20-vector goes into
+each robot's own IK and comes out as a completely different joint trajectory, and that one swap
+is the whole of cross-embodiment here. It is also why joint positions must never enter the
+policy's observation: the moment they do it stops transferring.
 """
 
 from __future__ import annotations
@@ -93,24 +94,23 @@ def unpack(vec: np.ndarray) -> tuple[dict[str, tuple[np.ndarray, np.ndarray]],
 
 
 def to_relative(state: "np.ndarray", action: "np.ndarray") -> "np.ndarray":
-    """Express an absolute action RELATIVE to the hand's current pose -- UMI's representation.
+    """Express an absolute action relative to the hand's current pose, UMI's representation.
 
         rel = to_relative(sample["observation.state"], sample["action"])
 
     Same 20-dim layout as `action`: per hand pos(3) + rot6d(6) + grip(1). The gripper value is
     already an opening fraction and is passed through unchanged; only the pose becomes relative.
 
-    WHY IT IS DERIVED AND NOT RECORDED. It is an exact function of two things the dataset already
-    stores, so recording it would be redundant -- and adding a column changes the dataset schema,
+    Derived rather than recorded: it is an exact function of two things the dataset already
+    stores, so recording it would be redundant, and adding a column changes the dataset schema,
     which stops the recorder appending to episodes captured before the change. Derive at training
     time and the choice of representation stays open.
 
-    WHY THE TOOL FRAME. The delta is rotated into the CURRENT hand frame (`R^T (p_cmd - p_meas)`)
-    rather than left in the world. A world-frame delta still carries the table's orientation, so
-    an arm mounted at a different angle -- or a humanoid whose base moves, which is where this is
-    going -- would read the same physical motion as different numbers. Nothing in the tool-frame
-    form refers to a frame the two embodiments must agree on, which is the property that makes it
-    portable (UMI, arXiv 2402.10329).
+    The delta is rotated into the current hand frame (`R^T (p_cmd - p_meas)`) rather than left in
+    the world. A world-frame delta still carries the table's orientation, so an arm mounted at a
+    different angle, or a humanoid whose base moves, would read the same physical motion as
+    different numbers. Nothing in the tool-frame form refers to a frame the two embodiments must
+    agree on, which is the property that makes it portable (UMI, arXiv 2402.10329).
     """
     import numpy as np
 

@@ -4,15 +4,15 @@
         --params-file install/zero_bringup/share/zero_bringup/config/rebot_control.yaml \
         -p dz:=0.04 -p seconds:=6.0
 
-WHY THIS EXISTS AS A SCRIPT AND NOT AS A SHELL ONE-LINER. The first time I checked servo accuracy
-I hand-packed the 20-value target on the command line and got a 574 mm residual on the right arm
-that no offline test could reproduce -- the solver, the joint limits and the MuJoCo closed loop
-were all provably fine. A hand-built action vector is an untested code path that only ever runs
-once, so any error in it is indistinguishable from a controller fault. This builds the target with
-`action.pack`, the same function the teleop and the dataset writer use, so what gets tested is the
-path that ships.
+A script rather than a shell one-liner. The first check of servo accuracy hand-packed the
+20-value target on the command line and reported a 574 mm residual on the right arm that no
+offline test could reproduce; the solver, the joint limits and the MuJoCo closed loop were all
+provably fine. A hand-built action vector is an untested code path that only ever runs once, so
+any error in it is indistinguishable from a controller fault. This builds the target with
+`action.pack`, the same function the teleop and the dataset writer use, so what gets tested is
+the path that ships.
 
-The target is CURRENT measured FK plus an offset, so it is reachable by construction and the
+The target is the current measured FK plus an offset, so it is reachable by construction and the
 residual is attributable to the servo rather than to the goal.
 """
 
@@ -40,13 +40,13 @@ class ServoTest(Node):
         self.declare_parameter("seconds", 6.0)
         self.declare_parameter("rate_hz", 20.0)
         self.declare_parameter("grip", 1.0)
-        # Which hands actually get the offset. The action vector always carries BOTH hands, so
-        # eef_control always commands both -- moving one arm at a time means sending the other
-        # its own current pose, not omitting it.
+        # Which hands get the offset. The action vector always carries both hands, so eef_control always
+        # commands both; moving one arm at a time means sending the other its own current pose, not
+        # omitting it.
         self.declare_parameter("only", "both")
         # Absolute goals. "" = use the dx/dy/dz delta instead; "pick" / "place" servo to the task
-        # landmarks, whose positions arrive as params measured from the compiled scene, so no
-        # coordinate is ever restated here.
+        # landmarks, whose positions arrive as params measured from the compiled scene, so no coordinate
+        # is restated here.
         self.declare_parameter("left_goal", "")
         self.declare_parameter("right_goal", "")
         self.declare_parameter("goal_dz", 0.0)
@@ -102,9 +102,8 @@ class ServoTest(Node):
             move = only in ("both", side)
             named = str(self.get_parameter(f"{side}_goal").value)
             if named and move:
-                # Absolute goal. Orientation is held at the measured one: the home poses are
-                # already solved to point the gripper down at the task volume, so re-aiming here
-                # would only fight that.
+                # Absolute goal. Orientation is held at the measured one: the home poses already point the
+                # gripper down at the task volume, so re-aiming here would only fight that.
                 goal = landmark[named] + np.array([0.0, 0.0, dz])
                 note = f"   [{named}{f' +{dz*100:.0f}cm' if dz else ''}]"
             else:
@@ -141,7 +140,7 @@ class ServoTest(Node):
             print(f"{t:6.2f} {s[0]*1000:9.2f} {np.degrees(s[1]):10.3f} {s[2]:7.0f} "
                   f"{s[3]*1000:9.2f} {np.degrees(s[4]):10.3f} {s[5]:7.0f}")
         if not self.trace:
-            print("NO ik_status RECEIVED -- is eef_control running?")
+            print("no ik_status received. Is eef_control running?")
             return
         final = self.trace[-1][1]
         # Achieved displacement, measured independently of the IK's own residual.

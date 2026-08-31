@@ -5,7 +5,7 @@
         -p root:=/home/sid/zero_data/rebot_pick_place \
         -p task:="pick up the can and place it in the tray"
 
-EPISODE CONTROL, from the gamepad OR the keyboard -- whichever hand is free:
+Episode control, from the gamepad or the keyboard, whichever hand is free:
 
     gamepad   X     start / stop an episode          B      discard and re-record
     keyboard  SPACE start an episode                 RIGHT  end it and save
@@ -17,54 +17,55 @@ re-record, escape = stop), so muscle memory carries over from `lerobot_record`. 
 addition: lerobot starts the next episode automatically after its fixed reset window, whereas
 episodes here are started by hand so a scene reset can take as long as it takes.
 
-WHAT THE POLICY SEES vs WHAT IS STORED -- the distinction this whole dataset turns on:
+What the policy sees, against what is stored, is the distinction this dataset turns on:
 
-    observation.state   20-dim: per hand pos(3) + rot6d(6) + grip(1), MEASURED via FK
-    observation.force   14-dim: per hand a 6-D grasp wrench IN THE TOOL FRAME + a squeeze magnitude
-                        normalised by that robot's own force cap. The F in VLFA.
-    action              the same 20-dim, COMMANDED (what the operator asked for)
-    (UMI's relative-trajectory form is NOT stored: it is exactly derivable from `action` plus
-     `observation.state` via zero_control.action.to_relative, so recording it would be redundant
-     AND would change the schema, which stops the recorder appending to existing datasets.)
-    observation.images  front + both wrists
-    task                the language instruction -- the L in VLFA
+    observation.state   20-dim: per hand pos(3) + rot6d(6) + grip(1), measured via FK
+    observation.force   14-dim: per hand a 6-D grasp wrench in the tool frame plus a squeeze
+                        magnitude normalised by that robot's own force cap. The F in VLFA.
+    action              the same 20-dim, commanded (what the operator asked for)
+    observation.images  front plus both wrists
+    task                the language instruction, the L in VLFA
 
-Those are embodiment-invariant, and they are the only keys a transferable policy may read. Joint
-angles must NOT be among them: the reBot has 6 per arm and Panda 7, so a policy trained on one
-cannot even be fed the other -- the vector length differs. This is why Mirage drives its transfer
-through Cartesian control rather than joint control.
+UMI's relative-trajectory form is not stored: it is exactly derivable from `action` plus
+`observation.state` via zero_control.action.to_relative, so recording it would be redundant and
+would change the schema, which stops the recorder appending to existing datasets.
 
-WHY THE FORCE INPUT IS RESOLVED AND NOT RAW. Each fingertip sensor reports its wrench in its own
-site frame, and those frames are not alike across robots -- measured, the reBot's finger frames sit
-90 deg from its tool frame while Panda's first finger is identity. Feeding the raw 24-dim
-per-finger vector to a shared policy would feed it two different physical quantities and call them
-the same feature. Summing per hand in the TOOL frame gives one quantity, one frame, one set of
-units on both arms, and normalising the magnitude by each robot's own grip-force cap (reBot 15 N,
-Panda 40 N) makes "how hard am I squeezing" comparable rather than absolute. The rotations are
-constant because every gripper joint is prismatic, so they are measured once at generation time.
+Those keys are embodiment-invariant, and they are the only ones a transferable policy may read.
+Joint angles must not be among them: the reBot has 6 per arm and Panda 7, so a policy trained on
+one cannot even be fed the other, since the vector length differs. This is why Mirage drives its
+transfer through Cartesian control rather than joint control.
 
-Everything else is stored for repair and analysis, NOT for the policy:
+The force input is resolved rather than raw. Each fingertip sensor reports its wrench in its own
+site frame, and those frames are not alike across robots: the reBot's finger frames sit 90 deg
+from its tool frame while Panda's first finger is identity. Feeding the raw 24-dim per-finger
+vector to a shared policy would feed it two different physical quantities under one feature name.
+Summing per hand in the tool frame gives one quantity, one frame, one set of units on both arms,
+and normalising the magnitude by each robot's own grip-force cap (reBot 15 N, Panda 40 N) makes
+"how hard am I squeezing" comparable rather than absolute. The rotations are constant because
+every gripper joint is prismatic, so they are measured once at generation time.
 
-    observation.joint_pos / joint_vel   makes the dataset REPAIRABLE. The tool point was wrong
+Everything else is stored for repair and analysis, not for the policy:
+
+    observation.joint_pos / joint_vel   makes the dataset repairable. The tool point was wrong
                                         three times while this rig was being built (113 mm, then
                                         39 mm, then right). EEF poses recorded against a wrong
-                                        TCP are permanently mislabelled -- unless joints are
-                                        stored, in which case every pose can be recomputed by FK.
-                                        It is also what a Mirage-style re-render of the other
-                                        robot needs, since the image is embodiment-specific too.
+                                        TCP are permanently mislabelled unless joints are stored,
+                                        in which case every pose can be recomputed by FK. It is
+                                        also what a Mirage-style re-render of the other robot
+                                        needs, since the image is embodiment-specific too.
     observation.ft                      per-finger wrench, 4 x 6. Asymmetric loading is what a
                                         bad grasp looks like numerically.
-    observation.ik_residual             tracking error. A frame where the arm was NOT following
-                                        the operator is worse than useless: it is mislabelled,
-                                        and this is what lets you filter it out afterwards.
+    observation.ik_residual             tracking error. A frame where the arm was not following
+                                        the operator is mislabelled, and this is what lets you
+                                        filter it out afterwards.
     observation.grip_cmd                the latched gripper command, to separate "operator asked
                                         for closed" from "gripper reached closed".
     observation.depth.*                 float32 metres, one per camera.
 
-FRAMES ARE ASSEMBLED FROM LATEST-VALUE CACHES, not time-synchronised. The streams run at
+Frames are assembled from latest-value caches, not time-synchronised. The streams run at
 different rates (joints 100 Hz, cameras ~10 Hz) and a hard sync would drop most frames. The
-dataset fps is therefore capped by the SLOWEST stream -- the cameras -- which is why they were
-cut to three at 224x224 to get 10 Hz.
+dataset fps is therefore capped by the slowest stream, the cameras, which is why they were cut
+to three at 224x224 to get 10 Hz.
 """
 
 from __future__ import annotations
@@ -99,8 +100,8 @@ class Recorder(Node):
         self.declare_parameter("eef_offset", [0.0, 0.0, 0.0])
         self.declare_parameter("play_sounds", True)  # spoken episode prompts, as lerobot does
         self.declare_parameter("keyboard", True)     # also accept lerobot's key bindings
-        # X, not BACK: reachable with a thumb without letting go of a stick. Free because teleop
-        # already uses A (home), Y (grip), LB/RB (dead-man) and START (reseed).
+        # X, not BACK: reachable with a thumb without letting go of a stick. Free because teleop already
+        # uses A (home), Y (grip), LB/RB (dead-man) and START (reseed).
         self.declare_parameter("btn_toggle", 2)      # X
         self.declare_parameter("btn_discard", 1)     # B
         for side in SIDES:
@@ -125,7 +126,7 @@ class Recorder(Node):
             if rot.size != 9 * len(self.fts) or len(self.ft_side) != len(self.fts):
                 raise SystemExit(
                     f"ft_rot/ft_side do not match {len(self.fts)} sensors "
-                    f"({rot.size} rotation values, {len(self.ft_side)} sides) -- regenerate "
+                    f"({rot.size} rotation values, {len(self.ft_side)} sides). Regenerate "
                     f"the control yaml with scripts/gen_bringup.py")
             self.ft_rot = rot.reshape(len(self.fts), 3, 3)
         else:
@@ -159,9 +160,9 @@ class Recorder(Node):
         self.n_episodes = 0
         self.play_sounds = bool(self.get_parameter("play_sounds").value)
         self._log_say = None
-        # Set by the keyboard listener thread, consumed by the timer. Plain bools written from one
-        # thread and read from another need no lock here: each is a single latched edge, and losing
-        # a race would at worst delay a keypress by one 10 Hz tick.
+        # Set by the keyboard listener thread, consumed by the timer. Plain bools written from one thread
+        # and read from another need no lock here: each is a single latched edge, and losing a race would
+        # at worst delay a keypress by one 10 Hz tick.
         self._kb = {"start": False, "save": False, "discard": False, "stop": False}
         self._listener = None
         if bool(self.get_parameter("keyboard").value):
@@ -284,7 +285,7 @@ class Recorder(Node):
         one place the operator is guaranteed not to be looking. lerobot's own `log_say` is reused
         rather than reimplemented, so phrasing and behaviour stay consistent with their tooling.
 
-        ⚠️ NON-BLOCKING, deliberately. This runs inside the 10 Hz recording timer; a blocking
+        Non-blocking, deliberately. This runs inside the 10 Hz recording timer, and a blocking
         `spd-say --wait` would stall the callback for the length of the utterance and drop frames
         from the episode it is announcing.
         """
@@ -314,7 +315,7 @@ class Recorder(Node):
         n_joint = len(self.joint_pos)
         feats: dict = {
             "observation.state": {"dtype": "float32", "shape": (DIM,), "names": None},
-            # POLICY-VISIBLE force: the F in VLFA. 7 per hand -- wrench(6) + normalised magnitude.
+            # Policy-visible force: the F in VLFA. 7 per hand, wrench(6) plus normalised magnitude.
             "observation.force": {
                 "dtype": "float32", "shape": (14,),
                 "names": [f"{s}.{a}" for s in SIDES
@@ -341,22 +342,21 @@ class Recorder(Node):
         return feats
 
     def _ensure_dataset(self) -> bool:
-        """Create the dataset, or RESUME an existing one at the same root.
+        """Create the dataset, or resume an existing one at the same root.
 
-        Resuming matters more than it sounds: `LeRobotDataset.create` raises FileExistsError on an
-        existing root, so without this, restarting the recorder -- after a crash, a break, or a
-        deliberate stop -- could only ever start a fresh directory. A 30-episode session had to be
-        one unbroken process.
+        `LeRobotDataset.create` raises FileExistsError on an existing root, so without this,
+        restarting the recorder after a crash, a break or a deliberate stop could only ever start
+        a fresh directory, and a 30-episode session had to be one unbroken process.
 
-        ⚠️ VALIDATE BEFORE LOADING, and `meta/info.json` is NOT enough. LeRobotDataset only
+        Validate before loading, because `meta/info.json` is not enough. LeRobotDataset only
         writes `meta/episodes/*.parquet` when the writers are closed, so a session that was killed
         leaves `info.json` claiming N episodes with no episode index at all. Handing that to
-        LeRobotDataset does not fail locally -- it treats the missing metadata as "not downloaded
+        LeRobotDataset does not fail locally: it treats the missing metadata as "not downloaded
         yet" and goes to the Hugging Face Hub, which 404s for a dataset that exists only on disk.
-        The traceback then points at huggingface_hub and hides the real problem, which is a
-        half-written directory. Checking for the episode index up front turns that into one
-        sentence. (An earlier note here blamed the 404 on a missing HF_HUB_OFFLINE; that was
-        wrong. The hub is only consulted when the LOCAL metadata is incomplete.)
+        The traceback then points at huggingface_hub and hides the real problem, a half-written
+        directory. Checking for the episode index up front turns that into one sentence. (An
+        earlier note here blamed the 404 on a missing HF_HUB_OFFLINE; that was wrong. The hub is
+        only consulted when the local metadata is incomplete.)
 
         The feature sets are compared before appending. The schema here has changed repeatedly
         (force promoted into the observation, depth added, joint velocities added), and appending
@@ -374,11 +374,11 @@ class Recorder(Node):
         threads = 2 * len(self.cams)
         info = self.root / "meta" / "info.json"
         episodes_idx = sorted((self.root / "meta" / "episodes").glob("**/*.parquet"))
-        # DISTINGUISH "never used" FROM "lost its index", BEFORE the check below. `create()` writes
-        # meta/info.json immediately, so starting the recorder and stopping it before the first
-        # episode leaves a skeleton with no episode index. That is indistinguishable from a dataset
-        # whose index was lost, but it has nothing in it to protect -- and refusing to record is
-        # pure friction that fires every time the recorder is restarted between can positions.
+        # Distinguish "never used" from "lost its index" before the check below. `create()` writes
+        # meta/info.json immediately, so starting the recorder and stopping it before the first episode
+        # leaves a skeleton with no episode index. That is indistinguishable from a dataset whose index was
+        # lost, but it has nothing in it to protect, and refusing to record is pure friction that fires
+        # every time the recorder is restarted between can positions.
         if (info.exists() and not episodes_idx
                 and not sorted((self.root / "data").glob("**/*.parquet"))
                 and not sorted((self.root / "videos").glob("**/*.mp4"))):
@@ -386,17 +386,17 @@ class Recorder(Node):
             shutil.rmtree(self.root)
             self.get_logger().info(
                 f"{self.root} held an empty dataset skeleton (no frames, no videos) left by a "
-                f"recorder stopped before its first episode -- recreating it.")
+                f"recorder stopped before its first episode. Recreating it.")
         if info.exists() and not episodes_idx:
-            # LOG, do not raise. This runs inside a timer callback, so a SystemExit propagates out
-            # of rclpy.spin and lands in main's `except SystemExit` -- which exists for the ESC
-            # path and swallows the message. The recorder then died with nothing after
-            # "Recorder ready", which is worse than the hub traceback it replaced.
+            # Log, do not raise. This runs inside a timer callback, so a SystemExit propagates out of
+            # rclpy.spin and lands in main's `except SystemExit`, which exists for the ESC path and swallows
+            # the message. The recorder then died with nothing after "Recorder ready", which is worse than the
+            # hub traceback it replaced.
             self.get_logger().error(
                 f"\n{self.root} was created but never finalised: meta/info.json is there but "
                 f"meta/episodes/ has no parquet, so the episode index is missing and the dataset "
                 f"cannot be opened.\nThis is what a killed recorder leaves behind.\n"
-                f"  Its frame data may still be readable -- check with:\n"
+                f"  Its frame data may still be readable, check with:\n"
                 f"    python3 -c \"import glob,pyarrow.parquet as pq; "
                 f"[print(f, pq.read_table(f).num_rows) for f in "
                 f"glob.glob('{self.root}/data/**/*.parquet', recursive=True)]\"\n"
@@ -430,29 +430,29 @@ class Recorder(Node):
             self.ds = LeRobotDataset.create(
                 repo_id=f"zero/{self.key}", fps=int(self.fps), features=want,
                 root=self.root, robot_type=self.key,
-                # Images go through worker threads; the control loop must not block on PNG/video
-                # encoding or the dataset silently drops to the writer's rate.
+                # Images go through worker threads; the control loop must not block on PNG/video encoding or the
+                # dataset drops to the writer's rate.
                 image_writer_processes=0, image_writer_threads=threads)
             self.get_logger().info(f"created dataset at {self.root}")
         return True
 
     def _tool_frame_force(self) -> np.ndarray:
-        """Per hand: net 6-D wrench in the TOOL frame, plus a normalised squeeze magnitude.
+        """Per hand: net 6-D wrench in the tool frame, plus a normalised squeeze magnitude.
 
-        TWO DIFFERENT PHYSICAL QUANTITIES, and conflating them is a mistake I made first time:
+        These are two different physical quantities and must not be conflated:
 
-          net wrench = SUM of the finger wrenches. The external load -- the object's weight, or
-              the gripper pressing on something. On a symmetric pinch it is near ZERO, because the
-              two pads push against each other and cancel.
-          squeeze    = MEAN of the per-finger force magnitudes. Grip strength, which is precisely
-              what the sum destroys. Gripping the can measures 15.6 N and 14.5 N on the two pads:
-              the sum is ~1 N, the squeeze is ~15 N. Reporting only the sum made this read 0.098
-              during a firm grasp.
+          net wrench = sum of the finger wrenches. The external load, i.e. the object's weight or
+              the gripper pressing on something. On a symmetric pinch it is near zero, because
+              the two pads push against each other and cancel.
+          squeeze    = mean of the per-finger force magnitudes. Grip strength, which is what the
+              sum destroys. Gripping the can measures 15.6 N and 14.5 N on the two pads: the sum
+              is ~1 N, the squeeze is ~15 N. Reporting only the sum made this read 0.098 during a
+              firm grasp.
 
         Both are wanted, so both are reported. Sum and mean are each defined for any number of
-        fingers, so a two-finger jaw and a three-finger hand present the same feature -- the
-        property the G1's Dex3 will need. Normalising the squeeze by this robot's own grip-force
-        cap (reBot 15 N, Panda 40 N) makes it comparable across embodiments rather than absolute.
+        fingers, so a two-finger jaw and a three-finger hand present the same feature, which is
+        the property the G1's Dex3 will need. Normalising the squeeze by this robot's own
+        grip-force cap (reBot 15 N, Panda 40 N) makes it comparable across embodiments.
         """
         out = []
         for side in SIDES:
@@ -472,7 +472,7 @@ class Recorder(Node):
         return np.concatenate(out).astype(np.float32)
 
     def _measured_poses(self) -> dict:
-        """MEASURED end-effector pose per hand, by FK from the joints -- not the commanded target."""
+        """Measured end-effector pose per hand, by FK from the joints, not the commanded target."""
         return {side: (self.ik[side].fk(self.q).translation,
                        self.ik[side].fk(self.q).rotation) for side in SIDES}
 
@@ -481,13 +481,13 @@ class Recorder(Node):
         return pack(poses, grips).astype(np.float32)
 
     def finalize(self) -> None:
-        """Close the parquet writers. WITHOUT THIS THE DATASET IS UNREADABLE.
+        """Close the parquet writers. Without this the dataset is unreadable.
 
         LeRobotDataset buffers frames into a parquet writer that only stamps the file footer when
         it is closed, and `finalize()` is what closes it. Skip it and you get a plausible-looking
-        directory -- correct `meta/info.json`, correct episode and frame counts, a 33 MB data file
-        -- that pyarrow refuses to open with "Parquet magic bytes not found in footer". The frames
-        are simply gone. It happened here: a 2-episode, 97-frame take was lost that way.
+        directory (correct `meta/info.json`, correct episode and frame counts, a 33 MB data file)
+        that pyarrow refuses to open with "Parquet magic bytes not found in footer". The frames
+        are gone. A 2-episode, 97-frame take was lost that way.
 
         Note lerobot_record.py does not call this either; it gets away with it because
         `push_to_hub` closes the writers on the way out. Recording locally, nothing does, so this
@@ -505,10 +505,10 @@ class Recorder(Node):
         try:
             self.ds.finalize()
             self.get_logger().info(
-                f"dataset finalised: {self.n_episodes} episodes at {self.root} -- safe to exit")
+                f"dataset finalised: {self.n_episodes} episodes at {self.root}. Safe to exit.")
             self._say("Dataset saved")
         except Exception as exc:
-            self.get_logger().error(f"FINALIZE FAILED ({exc}) -- the parquet has no footer and "
+            self.get_logger().error(f"FINALIZE FAILED ({exc}). The parquet has no footer and "
                                     f"the episodes are not readable")
 
     # ---------------------------------------------------------------- loop
@@ -576,17 +576,15 @@ class Recorder(Node):
 
     def _start(self) -> None:
         if not self.have_js or any(self.rgb[c] is None for c in self.cams):
-            self.get_logger().warn("not all streams up yet -- not starting")
+            self.get_logger().warn("not all streams up yet, not starting")
             return
-        # ⚠️ REFUSE TO RECORD WITHOUT AN ACTION STREAM. Nothing else catches this: with the teleop
-        # node down, /zero/eef_target is simply never published, `action` stays at its zero
-        # initialiser, and the recorder happily writes a perfectly well-formed episode in which
-        # every action is the zero vector. It looks like a real dataset, trains to nothing, and
-        # the only clue is a column of zeros nobody thinks to plot. Caught it in the first test
-        # run of this node.
+        # Refuse to record without an action stream. Nothing else catches this: with the teleop node down,
+        # /zero/eef_target is never published, `action` stays at its zero initialiser, and the recorder
+        # writes a perfectly well-formed episode in which every action is the zero vector. It looks like a
+        # real dataset, trains to nothing, and the only clue is a column of zeros nobody thinks to plot.
         if not self.have_action:
             self.get_logger().error(
-                "no /zero/eef_target seen -- is the teleop node running? "
+                "no /zero/eef_target seen. Is the teleop node running? "
                 "Refusing to record: every action would be zero.")
             return
         if not self._ensure_dataset():
@@ -603,8 +601,8 @@ class Recorder(Node):
             self.get_logger().info(
                 f"=== episode SAVED: {self.n_frames} frames, "
                 f"{self.n_frames / self.fps:.1f} s  (total {self.n_episodes}) ===")
-            # Two prompts, because they are two different instructions: the first confirms the
-            # take was kept, the second is the operator's cue to put the can back.
+            # Two prompts, because they are two different instructions: the first confirms the take was kept,
+            # the second is the operator's cue to put the can back.
             self._say(f"Episode saved. {self.n_episodes} recorded")
             self._say("Reset the environment")
         else:
@@ -627,8 +625,8 @@ def main() -> None:
     except SystemExit:
         pass
     finally:
-        # finalize() is idempotent enough to call again: the ESC path and the Ctrl-C path both run
-        # it, and a second close is a no-op. Losing the footer is far worse than closing twice.
+        # finalize() is idempotent enough to call again: the ESC path and the Ctrl-C path both run it, and
+        # a second close is a no-op. Losing the footer is far worse than closing twice.
         node.finalize()
         if node._listener is not None:
             node._listener.stop()

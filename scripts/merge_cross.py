@@ -2,18 +2,18 @@
 
     /home/sid/lerobot_env/bin/python scripts/merge_cross.py
 
-WHY. The second recording session went into `rebot_pick_place` rather than `cross_v1`, so the good
-episodes ended up split across two datasets -- and `rebot_pick_place` also still holds 60 episodes
-from BEFORE the wrist-camera and lighting fixes. Those 60 are unusable and must not be trained on:
-their wrist views show nothing (the camera looked past its own gripper) and the scene is lit
-differently. Measured on the `front` camera, mean/std is 71/51 for the old episodes against
-112/61 for every good one -- a visual domain shift on top of the dead wrist views.
+The second recording session went into `rebot_pick_place` rather than `cross_v1`, so the good
+episodes ended up split across two datasets. `rebot_pick_place` also still holds 60 episodes
+from before the wrist-camera and lighting fixes, which must not be trained on: their wrist views
+show nothing (the camera looked past its own gripper) and the scene is lit differently. On the
+`front` camera, mean/std is 71/51 for the old episodes against 112/61 for every good one, i.e. a
+visual domain shift on top of the dead wrist views.
 
-  cross_v1                    51 eps  ✓ post-fix
-  rebot_pick_place  60..90     31 eps  ✓ post-fix   <- the new session
-  rebot_pick_place   0..59     60 eps  ✗ pre-fix, EXCLUDED
+  cross_v1                     51 eps   post-fix
+  rebot_pick_place  60..90     31 eps   post-fix, the new session
+  rebot_pick_place   0..59     60 eps   pre-fix, excluded
 
-Writes a NEW dataset; both sources are left untouched.
+Writes a new dataset; both sources are left untouched.
 """
 
 from __future__ import annotations
@@ -40,10 +40,10 @@ def main() -> None:
     print(f"rebot_pick_place  : eps {RP_KEEP[0]}-{RP_KEEP[-1]}, {b.num_frames} frames")
 
     # The task string is the language conditioning, so a mismatch would split the dataset into two
-    # differently-conditioned halves. Compare the tasks the SELECTED EPISODES actually use, not
-    # each dataset's task table: rebot_pick_place's table still lists the old v1 string
-    # ("pick up the can and place it in the tray") because episodes 0-59 used it, even though every
-    # episode being merged here uses the current one.
+    # differently-conditioned halves. Compare the tasks the selected episodes actually use, not each
+    # dataset's task table: rebot_pick_place's table still lists the old v1 string ("pick up the can
+    # and place it in the tray") because episodes 0-59 used it, even though every episode being merged
+    # here uses the current one.
     def used(ds) -> set[str]:
         names = list(ds.meta.tasks.index)
         return {names[i] for i in set(int(x) for x in ds.hf_dataset["task_index"])}
@@ -52,11 +52,11 @@ def main() -> None:
         raise SystemExit(f"task strings differ, refusing to merge:\n  {sorted(ua)}\n  {sorted(ub)}")
     print(f"task (both)       : {next(iter(ua))!r}")
 
-    # ⚠️ STRIP DEPTH FIRST. merge_datasets round-trips the parquet through pandas, and pyarrow
-    # cannot convert the 224x224 nested float32 depth arrays:
+    # Strip depth first. merge_datasets round-trips the parquet through pandas, and pyarrow cannot
+    # convert the 224x224 nested float32 depth arrays:
     #   ArrowTypeError: Did not pass numpy.dtype object ... observation.depth.front
-    # Training never reads depth (see scripts/make_train_view.py), so dropping it here costs
-    # nothing and sidesteps the failure. The originals keep their depth.
+    # Training never reads depth (see scripts/make_train_view.py), so dropping it here costs nothing.
+    # The originals keep their depth.
     from lerobot.datasets.dataset_tools import remove_feature, split_dataset
     depth = [k for k in a.meta.features if k.startswith("observation.depth.")]
     print(f"dropping          : {depth}")

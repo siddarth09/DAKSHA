@@ -2,22 +2,20 @@
 
     python3 scripts/drop_episodes.py SRC DST 32 33 34 35
 
-WHY NOT `lerobot-edit-dataset --operation.type delete_episodes`: tried, and it fails partway on
-this layout -- it looks for a video file under a `<root>_old` directory it never created, leaving
-the dataset half-moved. Losing confidence in a tool mid-operation on the only copy of 30-odd
-episodes of teleoperation is not worth the convenience.
+`lerobot-edit-dataset --operation.type delete_episodes` does not work on this layout: it looks
+for a video file under a `<root>_old` directory it never creates and leaves the dataset
+half-moved.
 
-WHY A FULL REBUILD. The videos are not one-file-per-episode: several episodes share an mp4 (here,
-36 episodes across 4 files per camera). Removing one episode's frames therefore means re-encoding
-the file that contains it, and renumbering `episode_index`, `dataset_from_index` and the video
-timestamp pointers for everything after it. Rather than rewrite that index by hand, this replays
-the surviving frames through lerobot's own add_frame/save_episode so lerobot recomputes all of it.
+Full rebuild, because the videos are not one file per episode (here 36 episodes across 4 files
+per camera). Dropping an episode means re-encoding the file that holds it and renumbering
+`episode_index`, `dataset_from_index` and the video timestamp pointers for everything after it.
+Replaying the surviving frames through lerobot's own add_frame/save_episode lets lerobot
+recompute all of that.
 
-⚠️ RE-ENCODES EVERY KEPT EPISODE, so repeated deletions stack generational video loss (measured at
-~1.3/255 mean absolute per pass -- negligible once, worth batching deletions rather than doing
-them one at a time).
+This re-encodes every kept episode, so repeated deletions stack generational video loss (~1.3/255
+mean absolute per pass). Negligible once; batch deletions rather than doing them one at a time.
 
-Writes to a NEW directory and never touches the source.
+Writes to a new directory and never touches the source.
 """
 
 from __future__ import annotations
@@ -35,7 +33,7 @@ def main() -> None:
     src, dst = Path(sys.argv[1]).expanduser(), Path(sys.argv[2]).expanduser()
     drop = {int(a) for a in sys.argv[3:]}
     if dst.exists():
-        raise SystemExit(f"{dst} already exists -- point at a fresh directory")
+        raise SystemExit(f"{dst} already exists, point at a fresh directory")
 
     info = json.loads((src / "meta" / "info.json").read_text())
     features = info["features"]

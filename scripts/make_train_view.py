@@ -1,26 +1,25 @@
-"""Build a training VIEW of a recorded dataset: same episodes, fewer columns.
+"""Build a training view of a recorded dataset: same episodes, fewer columns.
 
     python3 scripts/make_train_view.py [SRC_DATASET] [VIEW_PREFIX]
 
-WHY THIS EXISTS. The recorded dataset carries three 224x224 float32 depth maps per frame, which
-is 600 kB/frame -- 20.4 GiB of parquet against 367 MiB of video. The policy never reads them.
-Training against the raw dataset would pull that 20 GiB through the dataloader on every epoch for
-nothing, and random access across it thrashes the page cache. (It is also what OOM-killed a plain
-pandas read of the whole set.)
+The recorded dataset carries three 224x224 float32 depth maps per frame, 600 kB/frame, which is
+20.4 GiB of parquet against 367 MiB of video. The policy never reads them. Training against the
+raw dataset would pull that 20 GiB through the dataloader every epoch for nothing, and random
+access across it thrashes the page cache. (It also OOM-killed a plain pandas read of the whole
+set.)
 
-WHY A VIEW AND NOT A REBUILD. Videos are SYMLINKED, never re-encoded: the frames are already
-correct and re-encoding would cost hours and a generation of quality. Only the small vector
-columns are rewritten, so a view costs seconds and ~30 MB.
+A view, not a rebuild: videos are symlinked and never re-encoded, since the frames are already
+correct and re-encoding costs hours and a generation of quality. Only the small vector columns
+are rewritten, so a view takes seconds and ~30 MB.
 
-WHY TWO VIEWS. `lerobot`'s `dataset_to_policy_features` types EVERY `observation.*` key as STATE
-(datasets/feature_utils.py), and `make_policy` only auto-derives `input_features` when they are
-unset. So whatever is in the view IS a policy input. The no-force view therefore trains a stock
-SmolVLA baseline through the unmodified CLI, and the force view is the VLFA arm -- the difference
-between them is exactly the ablation we want to measure, rather than a config flag we might get
-wrong in one run and not the other.
+Two views, because lerobot's `dataset_to_policy_features` types every `observation.*` key as
+STATE (datasets/feature_utils.py) and `make_policy` only auto-derives `input_features` when they
+are unset. Whatever is in the view is a policy input. The no-force view trains a stock SmolVLA
+baseline through the unmodified CLI; the force view is the VLFA arm. The difference between them
+is the ablation, rather than a config flag we might get wrong in one run and not the other.
 
-Incomplete episodes are NOT dropped here: that would renumber every index. Select them at train
-time with `--dataset.episodes`.
+Incomplete episodes are not dropped here, since that would renumber every index. Select them at
+train time with `--dataset.episodes`.
 """
 
 from __future__ import annotations

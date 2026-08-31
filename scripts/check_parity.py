@@ -1,14 +1,12 @@
 """Assert the URDF, the MJCF and the controller config agree on joint names.
 
-RUN THIS AFTER ANY CHANGE TO EITHER DESCRIPTION. mujoco_ros2_control resolves joints by name
-across `/robot_description` (URDF) and `/mujoco_robot_description` (MJCF). A mismatch does not
-reliably raise -- the joints that do match keep working, so the usual symptom is "the arm moves
-but the gripper does nothing", which is easy to misread as a controller or tuning problem and
-expensive to chase. The failure this catches is real and already happened once: menagerie names
-the gripper joints `joint_left`/`joint_right` while Seeed's official URDF calls them
-`gripper_joint1`/`gripper_joint2`.
+Run after any change to either description. mujoco_ros2_control matches joints by name across
+`/robot_description` (URDF) and `/mujoco_robot_description` (MJCF). A mismatch does not raise:
+the joints that do match keep working, so it shows up as "the arm moves but the gripper does
+nothing". That happened once already, because menagerie names the gripper joints
+`joint_left`/`joint_right` and Seeed's official URDF calls them `gripper_joint1`/`gripper_joint2`.
 
-Exit code 0 = consistent, 1 = drift (so it can gate a build).
+Exit code 0 = consistent, 1 = drift, so it can gate a build.
 """
 
 from __future__ import annotations
@@ -43,12 +41,12 @@ def mjcf_joints() -> set[str]:
 
 
 def mjcf_actuated_joints() -> set[str]:
-    """Joints that some actuator actually drives -- NOT actuator names.
+    """Joints that some actuator actually drives, not actuator names.
 
     Comparing actuator names only works by luck: menagerie names the reBot's actuators after
-    their joints, but Panda's are `actuator1..8`. What ros2_control actually needs is that every
-    commanded joint HAS an actuator behind it, so resolve each actuator's transmission target
-    instead. `actuator_trnid[:, 0]` is the joint id for trntype JOINT.
+    their joints, but Panda's are `actuator1..8`. ros2_control needs every commanded joint to
+    have an actuator behind it, so resolve each actuator's transmission target instead.
+    `actuator_trnid[:, 0]` is the joint id for trntype JOINT.
     """
     m = mujoco.MjModel.from_xml_path(str(MJCF))
     out: set[str] = set()
@@ -76,8 +74,8 @@ def mjcf_cameras() -> set[str]:
 
 
 def urdf_camera_sensors() -> set[str]:
-    """CAMERA sensors only. The <sensor> block also carries the fingertip force/torque sensors,
-    which are distinguished by a `mujoco_type` param -- cameras have none. Matching on the tag
+    """Camera sensors only. The <sensor> block also carries the fingertip force/torque sensors,
+    which are distinguished by a `mujoco_type` param; cameras have none. Matching on the tag
     alone made this check fail the moment F/T was added, reporting the F/T names as 'unexpected'
     cameras."""
     root = ET.parse(URDF).getroot()
@@ -105,9 +103,9 @@ def mjcf_ft_sensors() -> set[str]:
     """MJCF force/torque sensor pairs, reported by the base name the URDF must declare.
 
     mujoco_ros2_control resolves a `<sensor mujoco_type="fts">` named X to MJCF sensors X_force
-    and X_torque. If only one of the pair exists the plugin logs an error and skips the sensor --
-    it publishes nothing and the arm still works, so this is the same silent by-name failure as
-    the cameras and the joints.
+    and X_torque. If only one of the pair exists the plugin logs an error and skips the sensor:
+    it publishes nothing and the arm still works, so this is the same by-name failure as the
+    cameras and the joints.
     """
     m = mujoco.MjModel.from_xml_path(str(MJCF))
     names = {mujoco.mj_id2name(m, mujoco.mjtObj.mjOBJ_SENSOR, i) for i in range(m.nsensor)}
@@ -117,25 +115,25 @@ def mjcf_ft_sensors() -> set[str]:
 def check_kinematics(n_samples: int = 500, tol_mm: float = 0.5) -> bool:
     """Same joint angles in the URDF and the MJCF must give the same end-effector pose.
 
-    NAME PARITY IS NOT ENOUGH, and this is not hypothetical. menagerie inverted the rotation
-    axis on all six arm joints relative to Seeed's official URDF. Names matched, geometry
-    matched, the zero pose matched -- and forward kinematics disagreed by 766 mm on average
-    (1448 mm worst case) because every joint turned the wrong way. mujoco_ros2_control binds the
-    two descriptions by name, so it would have commanded joints happily while the sim mirrored
-    every motion. `scripts/fix_mjcf_conventions.py` corrects it; this asserts it stays corrected.
+    Name parity is not enough. menagerie inverted the rotation axis on all six arm joints
+    relative to Seeed's official URDF: names matched, geometry matched, the zero pose matched,
+    and forward kinematics disagreed by 766 mm on average (1448 mm worst case) because every
+    joint turned the wrong way. mujoco_ros2_control binds the two descriptions by name, so it
+    would have commanded joints happily while the sim mirrored every motion.
+    `scripts/fix_mjcf_conventions.py` corrects it; this asserts it stays corrected.
 
     Compiles the single-arm URDF in MuJoCo (MuJoCo reads URDF natively) and compares against the
-    single-arm MJCF, rather than the bimanual pair -- the prefixing is already covered above and
-    a single arm isolates the convention question.
+    single-arm MJCF rather than the bimanual pair: the prefixing is already covered above and a
+    single arm isolates the convention question.
     """
     import numpy as np
 
     if KEY != "rebot":
-        print(f"  --  kinematic check is reBot-specific (Panda's URDF is MJCF-derived and was "
+        print(f"SKIP  kinematic check is reBot-specific (Panda's URDF is MJCF-derived and was "
               f"verified at 0.0000 mm); skipped for {KEY}")
         return True
     if not L.SEEED_URDF.exists():
-        print("  --  Seeed URDF not on disk, kinematic check skipped")
+        print("SKIP  Seeed URDF not on disk, kinematic check skipped")
         return True
 
     txt = L.SEEED_URDF.read_text().replace(
@@ -177,15 +175,15 @@ def check_kinematics(n_samples: int = 500, tol_mm: float = 0.5) -> bool:
 def check_eef_frame(n_samples: int = 300, tol_mm: float = 0.5) -> bool:
     """The point the IK servos must be the point the MJCF calls the end effector.
 
-    RUNS FOR EVERY ROBOT, unlike check_kinematics(). Joint-level FK agreeing does not mean the
-    TOOL point agrees: the recorded action is the eef site's pose, and `eef_offset` shifts it off
-    the gripper body in both descriptions independently. Getting that composition wrong is silent
-    -- IK still converges, cleanly, onto the wrong point, so the arm reaches confidently past the
-    object and it reads as a bad grasp pose or a calibration problem.
+    Runs for every robot, unlike check_kinematics(). Joint-level FK agreeing does not mean the
+    tool point agrees: the recorded action is the eef site's pose, and `eef_offset` shifts it off
+    the gripper body in both descriptions independently. Getting that composition wrong is
+    silent, since IK still converges cleanly onto the wrong point, so the arm reaches confidently
+    past the object and it reads as a bad grasp pose or a calibration problem.
 
-    Already caught once: pinocchio's `Frame` places its `placement` relative to the parent JOINT,
-    not the parent FRAME, so the natural-looking SE3(I, offset) anchored the tool 119.9 mm (reBot)
-    / 107.0 mm (Panda) from the real gripper.
+    Caught once already: pinocchio's `Frame` places its `placement` relative to the parent joint,
+    not the parent frame, so the natural-looking SE3(I, offset) anchored the tool 119.9 mm
+    (reBot) / 107.0 mm (Panda) from the real gripper.
     """
     import numpy as np
     sys.path.insert(0, str(L.PKG.parent / "zero_control"))
@@ -223,12 +221,12 @@ def check_eef_frame(n_samples: int = 300, tol_mm: float = 0.5) -> bool:
 def check_tcp(tol_mm: float = 5.0) -> bool:
     """The tool point must sit where the fingers actually close.
 
-    `eef_offset` is what moves the IK's target -- and the recorded action -- from the gripper body
-    to the pinch point. Nothing detects a wrong one: IK still converges, beautifully, onto a point
-    in mid-air next to the gripper, so the arm reports arriving at the object and the fingers shut
-    on nothing. The reBot shipped 113 mm out (a guessed 0.10 along +z when its fingers close 49 mm
-    along -x) and it presented as "the gripper cannot grasp anything"; Panda was 17.9 mm out,
-    which merely biased every grasp. scripts/measure_tcp.py prints the correct value.
+    `eef_offset` moves the IK's target, and the recorded action, from the gripper body to the
+    pinch point. Nothing detects a wrong one: IK still converges onto a point in mid-air next to
+    the gripper, so the arm reports arriving at the object and the fingers shut on nothing. The
+    reBot shipped 113 mm out (a guessed 0.10 along +z when its fingers close 49 mm along -x) and
+    it presented as "the gripper cannot grasp anything"; Panda was 17.9 mm out, which biased
+    every grasp. scripts/measure_tcp.py prints the correct value.
     """
     sys.path.insert(0, str(L.ROOT / "scripts"))
     import measure_tcp
@@ -239,12 +237,12 @@ def check_tcp(tol_mm: float = 5.0) -> bool:
           f"{err * 1000:.2f} mm from the grasp centre (tol {tol_mm})")
     if not ok:
         print(f"        measured offset: ({off[0]:.4f}, {off[1]:.4f}, {off[2]:.4f})"
-              f"  -- run scripts/measure_tcp.py")
+              f"  (run scripts/measure_tcp.py)")
     return ok
 
 
 def report_superset(name: str, got: set[str], want: set[str]) -> bool:
-    """MJCF may legitimately hold MORE joints than ros2_control commands.
+    """MJCF may legitimately hold more joints than ros2_control commands.
 
     Panda's second finger joint is driven by an <equality> constraint, not by its own actuator,
     so it exists in the MJCF but must not be declared as a command interface. Assert containment,
@@ -277,14 +275,14 @@ def main() -> int:
           f"{len(L.ROBOTS[KEY]['ros2_control_joints'])})\n")
 
     checks = [
-        # Superset: the URDF may hold MORE movable joints than are commanded. Panda's
+        # Superset: the URDF may hold more movable joints than are commanded. Panda's
         # `finger_joint2` is driven by a mimic/equality, not its own command interface.
         report_superset("URDF movable joints", urdf_joints(), want),
         report("URDF <ros2_control> joints", urdf_ros2_control_joints(), want),
         report_superset("MJCF joints", mjcf_joints(), want),
         report_superset("MJCF actuated joints", mjcf_actuated_joints(), want),
     ]
-    # Cameras are the same by-name binding as the joints, with the same silent failure.
+    # Cameras bind by name like the joints, with the same silent failure.
     checks.append(report("MJCF cameras", mjcf_cameras(), set(L.all_cameras())))
     checks.append(report("URDF camera <sensor>s", urdf_camera_sensors(), set(L.all_cameras())))
     checks.append(check_kinematics())
@@ -295,8 +293,8 @@ def main() -> int:
     checks.append(report("MJCF force/torque pairs", mjcf_ft_sensors(), want_ft))
     ctrl = controller_joints()
     if ctrl:
-        # Controllers legitimately cover a SUBSET (arm controller + gripper controller split),
-        # so this asserts containment rather than equality.
+        # Controllers may legitimately cover a subset (arm + gripper controller split), so
+        # assert containment rather than equality.
         stray = ctrl - want
         ok = not stray
         print(f"{'OK  ' if ok else 'FAIL'}  {'controller yaml joints':28} {len(ctrl):>3} joints"
@@ -305,13 +303,13 @@ def main() -> int:
             print(f"        not in either description: {sorted(stray)}")
         checks.append(ok)
     else:
-        print("  --  controller yaml not present yet, skipped")
+        print("SKIP  controller yaml not present yet")
 
     print()
     if all(checks):
         print("all descriptions agree")
         return 0
-    print("DRIFT DETECTED -- fix before launching mujoco_ros2_control")
+    print("DRIFT DETECTED. Fix before launching mujoco_ros2_control.")
     return 1
 
 

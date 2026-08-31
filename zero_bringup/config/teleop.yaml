@@ -1,6 +1,6 @@
-# Gamepad map and feel. HAND-WRITTEN on purpose, unlike the *_control.yaml files: these are
+# Gamepad map and feel. Hand-written on purpose, unlike the *_control.yaml files: these are
 # ergonomics, not facts about the robot, so there is nothing for a generator to derive them from.
-# Verify the axis indices and signs with `ros2 run zero_control joy_probe` -- clones of this pad
+# Verify the axis indices and signs with `ros2 run zero_control joy_probe`; clones of this pad
 # keep the XInput indices but not always the signs.
 zero_teleop:
   ros__parameters:
@@ -12,28 +12,28 @@ zero_teleop:
 
     # Gripper travel per second (1.0 = fully open to fully closed in one second). Without it the
     # latch steps the command in a single tick and the gripper shuts at its force limit; ramping
-    # took the reBot's measured lift on the can from 64 mm to 84 mm. 0.5 s of travel measured as
-    # good as 1.4 s, so raise this to ~2.0 if the current 1.4 s feels sluggish.
+    # took the reBot's lift on the can from 64 mm to 84 mm. 0.5 s of travel was as good as 1.4 s,
+    # so raise this to ~2.0 if the current 1.4 s feels sluggish.
     grip_speed: 0.7
 
-    # How far the integrated target may lead the arm's MEASURED pose. Small = the stick feels
+    # How far the integrated target may lead the arm's measured pose. Small = the stick feels
     # 1:1, and driving into a reach limit just stops rather than banking travel to unwind.
-    # 0.03 -> 0.015 (2026-08-26). This bounds how far the commanded target may lead the MEASURED
-    # pose, so it bounds the gap between `action` and `observation.state` in the dataset. At 0.03,
-    # 28% of v1 frames sat >15 mm from their commanded pose (p90 29.5, max 31.5 = the leash), which
-    # breaks Mirage's precondition that the achieved pose be within 0.015 m at every timestep --
-    # the same condition that lets `action` serve as "the next pose to achieve" with no forward
-    # dynamics model. Raise it back if teleop feels sluggish, but re-check that percentage.
+    # 0.03 -> 0.015 (2026-08-26). This bounds the gap between `action` and `observation.state` in
+    # the dataset. At 0.03, 28% of v1 frames sat >15 mm from their commanded pose (p90 29.5, max
+    # 31.5 = the leash), which breaks Mirage's precondition that the achieved pose be within
+    # 0.015 m at every timestep, the same condition that lets `action` serve as "the next pose to
+    # achieve" with no forward dynamics model. Raise it back if teleop feels sluggish, but
+    # re-check that percentage.
     leash: 0.015
     # 0.20 -> 0.05 rad (11.5 deg -> 2.9 deg), 2026-08-26. Same reasoning as `leash` above, for
-    # orientation: measured rotational lag between `action` and `observation.state` in v1 peaked at
-    # exactly 11.46 deg -- the old cap -- with 19% of frames over 2 deg. Mirage bounds the norm of
-    # the pose error including the quaternion at 0.015, which is ~1.7 deg, so 11.5 deg of commanded
-    # lead put most of the motion outside the condition that makes `action` == achieved pose.
+    # orientation: rotational lag between `action` and `observation.state` in v1 peaked at exactly
+    # 11.46 deg, the old cap, with 19% of frames over 2 deg. Mirage bounds the norm of the pose
+    # error including the quaternion at 0.015, which is ~1.7 deg, so 11.5 deg of commanded lead
+    # put most of the motion outside the condition that makes `action` equal the achieved pose.
     leash_rot: 0.05
 
-    # Left stick drives the table plane. axis_x is the stick's Y because pushing the stick AWAY
-    # should send the arm AWAY (+x), which is the forward direction in the table frame.
+    # Left stick drives the table plane. axis_x is the stick's Y because pushing the stick away
+    # should send the arm away (+x), the forward direction in the table frame.
     axis_x: 1
     axis_y: 0
     axis_z: 4              # right stick Y
@@ -43,16 +43,16 @@ zero_teleop:
     sign_z: 1.0
     sign_yaw: 1.0
 
-    # Analog grip, OFF (-1). Set to 2 (LT) / 5 (RT) to drive the opening straight from the
-    # trigger instead of latching -- but then the operator must hold the trigger for the whole
+    # Analog grip, off (-1). Set to 2 (LT) / 5 (RT) to drive the opening straight from the
+    # trigger instead of latching, but then the operator must hold the trigger for the whole
     # carry and the object drops the moment their finger slips, which is why Y latches instead.
-    # Leave these at -1 if you use the latch: a finger resting on a trigger silently overrides
-    # it and looks like the latch is broken.
+    # Leave these at -1 if you use the latch: a finger resting on a trigger overrides it and
+    # looks like the latch is broken.
     axis_grip_left: -1
     axis_grip_right: -1
 
-    btn_left: 4            # LB: hold to drive the LEFT arm
-    btn_right: 5           # RB: hold to drive the RIGHT arm
+    btn_left: 4            # LB: hold to drive the left arm
+    btn_right: 5           # RB: hold to drive the right arm
     btn_grip: 3            # Y:  toggle the selected arm's gripper (latched)
     btn_home: 0            # A
     btn_reseed: 7          # START
