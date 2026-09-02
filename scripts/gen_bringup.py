@@ -305,7 +305,7 @@ def control_yaml(key: str) -> str:
 
     Two sections, and the split matters. The kinematic description (EEF frames, arm joint names,
     tool offset, gripper range) goes under the `/**` wildcard because it describes the robot, not
-    any one node: eef_control, servo_test, the teleop node and the dataset writer all need
+    any one node: eef_control, the teleop node and the dataset writer all need
     identical values, and a per-node copy is a divergence waiting to happen. Only the servo gains,
     genuinely eef_control's business, stay namespaced. Namespacing the frames instead makes every
     other node load with `left_eef_frame=""` and fail in the IK constructor.
@@ -319,6 +319,7 @@ def control_yaml(key: str) -> str:
         "  ros__parameters:",
         f"    robot: {key}",
         f"    eef_offset: [{', '.join(f'{v}' for v in r['eef_offset'])}]",
+        f"    eef_quat: [{', '.join(f'{v}' for v in r.get('eef_quat', (1.0, 0.0, 0.0, 0.0)))}]",
         f"    grip_range: [{r['grip_range'][0]}, {r['grip_range'][1]}]",
         f"    grip_ctrl_n: {len(r['grip_ctrl_joints'])}",
     ]
@@ -422,6 +423,8 @@ def control_yaml(key: str) -> str:
         lines.append(f"    {side}_eef_frame: {r['urdf_eef_frame'].format(side=side)}")
         js = ", ".join(f'"{L.prefixed(side, j)}"' for j in r["arm_joints"])
         lines.append(f"    {side}_arm_joints: [{js}]")
+        gs = ", ".join(L.prefixed(side, j) for j in r["gripper_joints"])
+        lines.append(f"    {side}_grip_joints: [{gs}]")
         hs = ", ".join(f"{v}" for v in r["home"][side])
         lines.append(f"    {side}_home: [{hs}]")
     lines += [

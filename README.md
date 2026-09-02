@@ -20,43 +20,67 @@ it is information the cameras cannot supply. Keeping force *transferable* takes 
 the action space, and is described below.
 
 Demonstrations are collected by hand on the **Seeed reBot** (source), then replayed and evaluated
-on the **UR5e** (target). Both work the identical scene: the same table, the same can, the same
-tray, the same physics.
+on the **Trossen ViperX 300s** (target), with the **Unitree G1** as the destination. Every
+embodiment works the identical scene: the same table, the same can, the same tray, the same
+physics.
 
 ### Source: Seeed reBot, 6 DoF per arm
 
 ![reBot workstation](docs/rebot_scene.png)
 
-### Target: UR5e, 6 DoF per arm, wearing the reBot's gripper
+### Target: Trossen ViperX 300s, 6 DoF per arm
 
-![UR5e workstation](docs/ur5e_scene.png)
+![ViperX 300s workstation](docs/vx300s_scene.png)
 
-The UR5e is the target for two measured reasons. It is **6-DoF like the reBot**, where the Franka
-Panda's seventh joint makes the IK non-square and adds a redundancy the source policy has no way
-to resolve. And it wears the **reBot's own gripper**, grafted onto its flange, which matters more
-than it sounds: the wrist camera is mounted *on the gripper*, so an identical gripper gives a
-geometrically identical wrist view. The finger positions agree to **0.1 mm in the
-camera frame**, and the fraction of the wrist frame occupied by the arm is 51.5% against the
-reBot's 51.4%.
+The ViperX is the target because it is, kinematically, the nearest thing to the reBot available:
 
-That property is what makes transfer possible **without re-recording a single episode**. The
-alternative, a different gripper on the target, was tried on the Panda and is what the transfer
-failed on: the policy reached to within 8 mm of the can zero-shot but never committed to a grasp,
-because the grasp decision depends on the close-up wrist view and that was the one view where the
-two robots still differed.
+| | reBot (source) | ViperX 300s |
+|---|---|---|
+| arm DoF | 6 | **6** |
+| reach, max / p95 | 0.909 / 0.83 m | **0.902 / 0.855 m** |
+| gripper | 2-slide parallel jaw | **2-slide parallel jaw** |
+| jaw axis in the tool frame | local y | **local y** |
+| jaw gap | 100 mm | 42 → **114 mm** |
+| clearance on the 66 mm can | 17 mm/side | **24 mm/side** |
 
-> **Status.** The UR5e **scene** is generated and verified (MJCF, solved home poses landing on
-> `PICK_POS`/`PLACE_POS` at 0.00 mm, three cameras, grafted gripper). Its **ROS bringup is not**:
-> there is no URDF, no controller YAML and no launch file yet, so it cannot be driven from
-> `run_policy.sh` at the time of writing. The Panda remains the only wired-up target.
+That similarity is the whole point, and it is measurable rather than aesthetic. Replaying a
+recorded episode's commanded poses through each arm's own IK, the ViperX reproduces them to
+**0.82 mm worst case with 0% of frames over 5 mm**. Its URDF and MJCF agree to **0.0000 mm over
+400 configurations**, because menagerie derived the MJCF from Trossen's own URDF. And its gripper
+needs no surgery: `gripper` is already a joint actuator on `left_finger` with an `<equality>`
+coupling the pair, which is exactly what ros2_control wants.
 
-The task is **pick → hand over → place**: the left arm lifts the can, passes it to the right arm
-mid-table, and the right arm sets it in the tray. It is a handover by construction, not by choice:
-the base separation (0.90 m) was solved so that the can is reachable by the left arm *only* and
-the tray by the right arm *only*, so an arm cannot quietly skip the handover and turn the task
-into pick-and-place.
+> **A Franka Panda + Robotiq 2F-85 was built and then removed.** It failed for a reason worth
+> recording: with the eef frames of both robots reconciled onto one convention, the Panda's
+> *picking* arm could not reproduce the reBot's recorded orientations at **any** base placement,
+> missing by 146 mm and 76° at its best. The reBot grasps nearly horizontally with an 11 mm tool
+> offset, so its wrist sits at the can; the Robotiq's tool point is 149.6 mm out, which forces the
+> Panda's forearm almost flat onto the table. That is a kinematic wall, not a tuning problem.
 
----
+### Destination: Unitree G1, 7 DoF per arm + Dex3 hands
+
+![G1 workstation](docs/g1_scene.png)
+
+> **Infrastructure only.** The MJCF, URDF, `ros2_control` block and launch files are generated and
+> `scripts/check_parity.py g1` reports *all descriptions agree* with the URDF and MJCF matching to
+> **0.0000 mm over 600 configurations**. What a policy would need is deliberately absent and each
+> gap is flagged in the registry: `eef_offset` and `eef_quat` are unmeasured (a three-finger hand's
+> grasp centre is a pad centroid, and `measure_tcp.py` assumes two opposing fingers), the grip
+> channel has no closing synergy (one scalar against seven joints with seven different ranges),
+> the wrist camera is unplaced, and `home` is not solved onto the training start pose.
+
+The G1 is structurally unlike the arms: one floating-base humanoid carrying both arms rather than
+two arms bolted to a table, which the generators handle through a `single_body` flag. Its pelvis is
+welded at the stance `reach_gate.py` verified (0.75 m out, yaw 180 to face the table), because a
+floating base would simply fall over and the study is about the arms, not balance.
+
+Two repairs were needed on the way in, both documented in `gen_scene.py`. Its 12 **leg** actuators
+are `<motor>` torque actuators for RL locomotion sharing a `<default>` class with the arms' position
+servos, so they came out as gain 1 against a qpos term of −500 with *positive* velocity feedback;
+under a welded pelvis that collapsed the knee by 2.3 rad in 5 s. And gravity compensation was
+matching on the `left_`/`right_` prefix, which skipped the pelvis, waist and torso, i.e. most of the
+robot's mass.
+
 
 ## What the policy sees, and what is merely stored
 
@@ -89,7 +113,7 @@ dataset.
 
 Force cannot be handed to the policy raw. Each fingertip sensor reports in its own frame, and those
 frames differ between the arms: the reBot's finger frames sit 90° from its tool frame
-while Panda's first finger is identity. The raw 24-dim vector is therefore *not the same physical
+while the ViperX's are identity. The raw 24-dim vector is therefore *not the same physical
 measurement* on the two robots.
 
 `observation.force` resolves it into one shared quantity, per hand:
@@ -97,7 +121,7 @@ measurement* on the two robots.
 - **net wrench (6)**, the finger wrenches rotated into the **tool frame** and summed. External
   load: the object's weight, or the gripper pressing on something.
 - **squeeze (1)**, the *mean* of the per-finger force magnitudes, divided by that robot's own
-  grip-force cap (reBot 15 N, Panda 40 N), so it is dimensionless and comparable.
+  grip-force cap (reBot 15 N, ViperX 20 N), so it is dimensionless and comparable.
 
 Both are needed, because the sum destroys the one that matters most. On a symmetric pinch the pads
 push against each other and cancel: gripping the can gives 15.6 N and 14.5 N per pad, so the
@@ -110,7 +134,7 @@ three-finger Dex3 present the same feature. The sensor-to-tool rotations are con
 gripper joint is prismatic, so fingers translate and never rotate (verified: 0.00e+00 change
 between fully open and fully closed), so they are measured once at generation time.
 
-Joint angles, by contrast, **cannot** be made policy-visible: the reBot has 6 per arm and Panda 7,
+Joint angles, by contrast, **cannot** be made policy-visible: the reBot has 6 per arm and the G1 7,
 so a policy trained on one cannot even be fed the other; the vector length differs.
 
 But they are recorded anyway, because they make the dataset repairable. The tool-centre point of
@@ -153,8 +177,7 @@ Requires ROS 2 Jazzy, `mujoco_ros2_control`, `mujoco`, `pinocchio`, and (for rec
 
 ## Recording demonstrations
 
-Four terminals, in order. Swap `rebot` for `panda` to drive the other arm (the UR5e has a scene
-but no bringup yet, see the status note above).
+Four terminals, in order. Swap `rebot` for `vx300s` or `g1` to drive another embodiment.
 
 ```bash
 # 1. simulator + controllers + IK
@@ -165,12 +188,7 @@ ros2 launch zero_bringup rebot.launch.py can_x:=0.30 can_y:=0.42 can_yaw:=0.5
 # 2. gamepad teleoperation
 ros2 launch zero_bringup rebot_teleop.launch.py
 
-# 3. live monitor: cameras, joint plots, fingertip forces
-ros2 run zero_control rerun_viewer --ros-args \
-    --params-file install/zero_bringup/share/zero_bringup/config/rebot_control.yaml \
-    -p depth:=true
-
-# 4. dataset recorder
+# 3. dataset recorder
 #    keep TASK in a variable: it is the language conditioning and must be byte-identical
 #    across every episode AND at inference
 TASK="pick up the red cylinder hand it over to the robot on the right and place it on the black tray"
@@ -297,7 +315,7 @@ the reachable region instead of clustering where the IK is comfortable.
 ## Training
 
 ```bash
-# 1. build the training views (drops depth, symlinks videos -- no re-encoding)
+# 1. build the training views (drops depth, symlinks videos, no re-encoding)
 python3 scripts/make_train_view.py ~/zero_data/cross_v2 crossv2
 
 # 2. fine-tune SmolVLA
@@ -336,21 +354,18 @@ default, so training and inference cannot disagree about the instruction.
 > *teleop's* target perfectly. `policy_node` now refuses to start if another publisher is present.
 > Note `rebot_teleop.launch.py` starts both `joy_node` *and* teleop, so use it for recording only.
 
-Evaluating and debugging:
+Debugging a rollout:
 
 ```bash
-/home/sid/lerobot_env/bin/python scripts/eval_chunk_error.py [CHECKPOINT]   # error in mm, not loss
-bash scripts/diag_live_obs.sh                                              # dump one live observation
+# dump what the policy actually acted on: images + state, every Nth tick and at the handover
+DUMP=/tmp/run DUMP_EVERY=25 DUMP_MAX=120 ROBOT=vx300s bash scripts/run_policy.sh "" 10
 ```
 
-`eval_chunk_error.py` exists because the training loss is an MSE on normalised, zero-padded
-32-dim vectors, which cannot be compared against anything physical. This unnormalises the predicted
-chunk and reports millimetres, against the number that actually matters: the reBot jaw opens to
-100 mm on a 66 mm can, so there is only **17 mm of lateral clearance** at the grasp.
-
-`diag_live_obs.sh` captures one live observation and diffs it against the dataset. A policy that
-tracks demos offline but not in rollout is almost always being fed a different observation, and
-guessing at that costs hours.
+There is no offline eval script on purpose. A number in millimetres against a held-out chunk never
+predicted whether the arm would actually pick the can up, and twice it disagreed with what the sim
+did. Run the policy and watch it. When it fails, `frame_dump_dir` saves the exact observation it
+acted on, which is the thing worth looking at: a policy that tracks demos offline but stalls in
+rollout is almost always being fed a different observation than it trained on.
 
 ## Results
 
@@ -364,7 +379,7 @@ The third row executes the whole thing autonomously in ~52 s: approach → grasp
 **3.3 mm**) → lift → carry to the handover → the second arm meets it → both jaws closed 78 mm
 apart → left releases → right carries to the tray → releases → both home.
 
-Zero-shot on the Panda the same checkpoint reaches **8.0 mm** from the can, inside the jaw
+Zero-shot on the Franka Panda the same checkpoint reached **8.0 mm** from the can, inside the jaw
 clearance, on an arm it has never seen, with 7 DoF instead of 6. But the gripper command crosses
 its threshold 15 times instead of 2 and never commits, so the handover never fires. **The spatial
 policy transfers; the grasp decision does not**, and that decision is the one that depends on the
@@ -400,7 +415,8 @@ Supporting tools:
 | `reach_gate.py` | GO/NO-GO: what volume is reachable by both reBots *and* both G1 arms |
 | `plan_can_poses.py` | pick N valid, well-spread can positions (see above) |
 | `hero_shot.py` | render the images in this README |
-| `make_shared_gripper.py` | extract the reBot gripper as a standalone MJCF, for grafting onto another arm |
+| `fetch_vendor.sh` | clone the upstream `robotiq_description` the URDF's meshes come from |
+| `view_scene.py` | open any embodiment's scene in the interactive viewer, at the `home` keyframe |
 
 Data and policy tools (run these with `/home/sid/lerobot_env/bin/python`):
 
@@ -410,9 +426,10 @@ Data and policy tools (run these with `/home/sid/lerobot_env/bin/python`):
 | `merge_cross.py` | merge good episodes across datasets, excluding pre-camera-fix ones |
 | `train_base_full.sh` | SmolVLA fine-tune, expert-only. The working recipe |
 | `train_base_lora.sh` | the LoRA ablation, kept for the comparison |
-| `run_policy.sh` | drive the sim from a checkpoint; `ROBOT=panda` for the other arm |
-| `eval_chunk_error.py` | open-loop chunk error in millimetres and degrees |
-| `diag_live_obs.sh` | capture one live observation and diff it against the dataset |
+| `run_policy.sh` | drive the sim from a checkpoint; `ROBOT=vx300s` for the target |
+| `shadow_render` (node) | cross-painting: render the SOURCE robot at the target's measured poses, so the policy sees the embodiment it trained on. `SHADOW=1` on run_policy.sh points the policy at it |
+| `solve_home.py` | solve a robot's `home` so its first observation matches the training data |
+| `fetch_vendor.sh` | clone and flatten the upstream ViperX description |
 | `recover_dataset.py` | rebuild a dataset whose episode index was lost |
 | `drop_episodes.py` | rebuild a dataset without some episodes (re-encodes video) |
 
@@ -468,7 +485,7 @@ Things that are measured, not guessed, and that will bite if you forget them.
 through the whole bimanual pick → handover → place autonomously. That was the prerequisite for
 everything below, and it is done.
 
-The reBot → UR5e transfer is the *experiment*, not the destination. Two fixed-base arms on a
+The reBot → ViperX transfer is the *experiment*, not the destination. Two fixed-base arms on a
 table are the cleanest possible test of the claim: identical task, identical scene, identical
 action space, and nothing different except the arm. The control half of that claim already holds:
 the same 20-dim absolute EEF pose goes into each robot's own IK, `T^S_T` from Mirage is the
@@ -479,10 +496,9 @@ What does not transfer yet is the **grasp decision**, and the reason is visual: 
 the view the decision depends on, and it is the one view where the two robots differ. Three routes,
 in increasing cost:
 
-1. **A visually matched target arm, chosen and built.** The UR5e wearing the
-   reBot's own gripper, so the wrist view is geometrically identical and no re-recording is
-   needed. Remaining: URDF, controller YAML and launch files. The UR5e ships MJCF only, so
-   `gen_urdf.py` needs either a converter or an MJCF-derived path.
+1. **Place the ViperX's wrist camera, then measure the transfer.** Its `wrist_cam_pos` is the
+   reBot's numbers carried over on the shared tool convention and is untested in a render. The
+   camera rides the gripper, and the close-up wrist view is what the grasp decision depends on.
 2. **Cross-painting the `front` view**, Mirage's own method. Its same-base-pose assumption holds
    for two table-mounted arms; it was demoted for the G1, not for this leg.
 3. **A wrist-only policy**, dropping `front` entirely, the one view that can never match.
@@ -495,9 +511,9 @@ scheme from `research/2606.26095-action-priors.md`, whose Stage 1 needs actions 
 The destination is the **Unitree G1**: a humanoid, doing the same bimanual pick-and-handover with
 its own arms and three-finger Dex3 hands. A humanoid changes what "the same action space" means: the base can
 move, the cameras move with the head, and the workspace is defined by the whole body rather than a
-bolted-down shoulder. Getting reBot → UR5e to work first means that when the G1 arrives, the only
+bolted-down shoulder. Getting reBot → ViperX to work first means that when the G1 arrives, the only
 new variable is the embodiment. The action representation, the recording pipeline, the dataset
 schema and the evaluation are all already settled and already known to transfer once.
 
-If a policy recorded on a 6-DoF hobby arm can drive a Panda without ever seeing one, the same
+If a policy recorded on a 6-DoF hobby arm can drive a ViperX without ever seeing one, the same
 argument should carry to a humanoid. That is the thing worth finding out.

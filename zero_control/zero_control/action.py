@@ -18,7 +18,7 @@ Absolute, not deltas. Poses are absolute in the world/table frame, so nothing dr
 recorded demo means the same thing on any robot. Gamepad input is naturally a delta; integrating
 delta to absolute happens in the teleop node, never in the dataset.
 
-This is the transfer mechanism. reBot (6-DoF + parallel jaw), UR5e (6-DoF + the same jaw) and G1
+This is the transfer mechanism. reBot (6-DoF + parallel jaw), Panda (7-DoF + Robotiq 2F-85) and G1
 (7-DoF + 3-finger hand) share no joint space. They share this. The identical 20-vector goes into
 each robot's own IK and comes out as a completely different joint trajectory, and that one swap
 is the whole of cross-embodiment here. It is also why joint positions must never enter the

@@ -104,6 +104,25 @@ class PolicyNode(Node):
         self.policy, self.pre, self.post, horizon = self._load(ckpt)
 
         self.state: np.ndarray | None = None
+        # Dump the ACTUAL observation at the handover, so appearance questions can be settled by
+        # looking rather than by reasoning about geometry. The trace records state and action only,
+        # which was enough to rule out position (the vx300s reaches the same handover pose as a
+        # successful reBot run, 82 mm vs 81 mm from the training mean) but cannot say anything about
+        # what the cameras saw. Fires when the giving hand is closed and the two hands are close,
+        # which is the moment the receiving hand has to decide.
+        self.declare_parameter("camera_ns", "/zero")
+        self.declare_parameter("frame_dump_dir", "")
+        self.declare_parameter("frame_dump_max", 24)
+        # Dump every Nth tick as well as at the handover. A rollout that stalls before the hands
+        # meet otherwise produces no frames at all, and there is nothing to compare with training.
+        self.declare_parameter("frame_dump_every", 0)
+        self.dump_dir = str(self.get_parameter("frame_dump_dir").value)
+        self.dump_max = int(self.get_parameter("frame_dump_max").value)
+        self.dump_every = int(self.get_parameter("frame_dump_every").value)
+        self.dumped = 0
+        if self.dump_dir:
+            import os
+            os.makedirs(self.dump_dir, exist_ok=True)
         self.rgb: dict[str, np.ndarray] = {}
         self.running = bool(self.get_parameter("autostart").value)
         self.prev_x = 0
@@ -111,8 +130,14 @@ class PolicyNode(Node):
         self.replans = 0
         self.ticks = 0
 
+        # Where the images come from. Point this at the shadow renderer's namespace to feed the
+        # policy the SOURCE robot's rendering instead of the target's own cameras; the rest of the
+        # node is unchanged, so switching is a launch argument and switching back is the revert.
+        cam_ns = self.get_parameter("camera_ns").value.rstrip("/")
+        if cam_ns != "/zero":
+            self.get_logger().info(f"reading camera images from {cam_ns}/* (cross-painted)")
         for c in self.cams:
-            self.create_subscription(Image, f"/zero/{c}/image_raw",
+            self.create_subscription(Image, f"{cam_ns}/{c}/image_raw",
                                      lambda m, c=c: self._on_rgb(m, c), 10)
         self.create_subscription(Float64MultiArray, "/zero/eef_state", self._on_state, 10)
         self.create_subscription(Float64MultiArray, "/zero/ik_status", self._on_status, 10)
@@ -152,9 +177,10 @@ class PolicyNode(Node):
         cfg = PreTrainedConfig.from_pretrained(ckpt)
         cfg.pretrained_path = ckpt
         cfg.device = "cuda"
-        # A shorter horizon than training is an inference choice, and a good one: open-loop chunk error
-        # grows from 31 mm at k=0 to 47 mm at k=49, so replanning sooner is strictly better. See
-        # scripts/eval_chunk_error.py.
+        # A shorter horizon than training is an inference choice, and a good one: open-loop chunk
+        # error was measured growing from 31 mm at k=0 to 47 mm at k=49, so replanning sooner is
+        # strictly better. Note this CLAMPS to the trained chunk size, so asking for more than
+        # chunk_size silently does nothing.
         cfg.n_action_steps = min(int(self.get_parameter("n_action_steps").value), cfg.chunk_size)
 
         meta = LeRobotDatasetMetadata(self.get_parameter("repo_id").value,
@@ -169,6 +195,35 @@ class PolicyNode(Node):
         pre, post = make_pre_post_processors(policy_cfg=cfg, pretrained_path=ckpt)
         policy.eval()
         return policy, pre, post, cfg.n_action_steps
+
+    def _maybe_dump(self, a: np.ndarray) -> None:
+        """Save the images and state the policy just acted on.
+
+        Two triggers. The handover one fires once a hand is closed and the two are within 150 mm,
+        which is the moment the receiving hand has to decide. That is useless for a rollout that
+        stalls earlier, so `frame_dump_every` also dumps every Nth tick, giving frames from the
+        approach and the grasp to compare against the training video at the same phase.
+        """
+        if not self.dump_dir or self.dumped >= self.dump_max or self.state is None:
+            return
+        giving_closed = a[9] < 0.5 or a[19] < 0.5
+        gap = float(np.linalg.norm(np.asarray(a[0:3]) - np.asarray(a[10:13])))
+        at_handover = giving_closed and gap < 0.15
+        periodic = self.dump_every > 0 and self.ticks % self.dump_every == 0
+        if not (at_handover or periodic):
+            return
+        tag = "handover" if at_handover else "frame"
+        import os
+        np.savez_compressed(
+            os.path.join(self.dump_dir, f"{tag}_{self.ticks:05d}.npz"),
+            state=np.asarray(self.state, dtype=np.float32),
+            action=a.astype(np.float32),
+            gap=np.float32(gap),
+            **{c: self.rgb[c] for c in self.cams if c in self.rgb})
+        self.dumped += 1
+        if self.dumped == 1:
+            self.get_logger().info(
+                f"dumping handover observations to {self.dump_dir} (hands {gap*1000:.0f} mm apart)")
 
     def _tick(self) -> None:
         import torch
@@ -207,6 +262,7 @@ class PolicyNode(Node):
             self.replans += 1
 
         a = action[0, :DIM].float().cpu().numpy().astype(float)
+        self._maybe_dump(a)
         self.pub.publish(Float64MultiArray(data=a.tolist()))
         if self.trace_path:
             self.trace.append(np.concatenate([[self.ticks, self.replans, self.residual,

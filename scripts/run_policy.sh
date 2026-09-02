@@ -2,8 +2,8 @@
 # Play a trained checkpoint closed-loop in the sim.
 #
 #   1) start the sim:  ros2 launch zero_bringup rebot.launch.py can_x:=0.47 can_y:=0.24
-#      ...or the Panda:  ros2 launch zero_bringup panda.launch.py can_x:=0.47 can_y:=0.24
-#                        then run this with  ROBOT=panda
+#      ...or the target:  ros2 launch zero_bringup vx300s.launch.py can_x:=0.47 can_y:=0.24
+#                         then run this with  ROBOT=vx300s
 #   2) then, in another terminal:  bash scripts/run_policy.sh
 #   3) press X on the gamepad to start/stop the policy (same button as the recorder)
 #
@@ -83,4 +83,8 @@ trap cleanup EXIT INT TERM
   -p repo_id:=zero/cross \
   -p dataset_root:="$HOME/zero_data/cross_base" \
   -p n_action_steps:="$STEPS" \
-  ${TRACE:+-p trace_path:="$TRACE"}
+  ${SHADOW:+-p camera_ns:="/shadow"} \
+  ${TRACE:+-p trace_path:="$TRACE"} \
+  ${DUMP:+-p frame_dump_dir:="$DUMP"} \
+  ${DUMP_EVERY:+-p frame_dump_every:="$DUMP_EVERY"} \
+  ${DUMP_MAX:+-p frame_dump_max:="$DUMP_MAX"}

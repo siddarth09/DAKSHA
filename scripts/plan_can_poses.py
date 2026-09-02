@@ -1,4 +1,4 @@
-"""Pick N well-spread can positions that are valid for the whole reBot -> UR5e -> G1 chain.
+"""Pick N well-spread can positions that are valid for the whole reBot -> Panda -> G1 chain.
 
     MUJOCO_GL=egl python3 scripts/plan_can_poses.py [N] [MIN_APPROACHES]
 

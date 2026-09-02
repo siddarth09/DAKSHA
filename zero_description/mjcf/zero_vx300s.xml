@@ -1,0 +1,432 @@
+<mujoco model="zero_vx300s">
+  <compiler angle="radian" meshdir="/home/sid/.cache/robot_descriptions/mujoco_menagerie/trossen_vx300s/assets/" texturedir="/home/sid/.cache/robot_descriptions/mujoco_menagerie/trossen_vx300s/assets/"/>
+
+  <option impratio="10" integrator="implicitfast" cone="elliptic">
+    <flag multiccd="enable"/>
+  </option>
+
+  <size nkey="1"/>
+
+  <visual>
+    <global offwidth="1280" offheight="720"/>
+    <headlight ambient="0.22 0.22 0.22" diffuse="0.28 0.28 0.28" specular="0.08 0.08 0.08"/>
+  </visual>
+
+  <default>
+    <default class="left_main">
+      <default class="left_vx300s">
+        <general forcerange="-35 35" biastype="affine" biasprm="0 -1"/>
+        <default class="left_waist">
+          <joint range="-3.14158 3.14158" damping="2.86"/>
+          <general ctrlrange="-3.14158 3.14158" gainprm="25" biasprm="0 -25"/>
+        </default>
+        <default class="left_shoulder">
+          <joint range="-1.85005 1.25664" armature="0.004" damping="6.25" frictionloss="0.06"/>
+          <general ctrlrange="-1.85005 1.25664" forcerange="-57 57" gainprm="76" biasprm="0 -76"/>
+        </default>
+        <default class="left_elbow">
+          <joint range="-1.76278 1.6057" armature="0.072" damping="8.15" frictionloss="1.74"/>
+          <general ctrlrange="-1.76278 1.6057" forcerange="-25 25" gainprm="106" biasprm="0 -106"/>
+        </default>
+        <default class="left_forearm_roll">
+          <joint range="-3.14158 3.14158" armature="0.06" damping="3.07"/>
+          <general ctrlrange="-3.14158 3.14158" forcerange="-10 10" gainprm="35" biasprm="0 -35"/>
+        </default>
+        <default class="left_wrist_angle">
+          <joint range="-1.8675 2.23402" damping="1.18"/>
+          <general ctrlrange="-1.8675 2.23402" gainprm="8" biasprm="0 -8"/>
+        </default>
+        <default class="left_wrist_rotate">
+          <joint range="-3.14158 3.14158" damping="0.78"/>
+          <general ctrlrange="-3.14158 3.14158" gainprm="7" biasprm="0 -7"/>
+        </default>
+        <default class="left_finger">
+          <joint type="slide" armature="0.251" damping="10"/>
+          <general ctrlrange="0.021 0.057" gainprm="300" biasprm="0 -300"/>
+          <default class="left_left_finger">
+            <joint range="0.021 0.057"/>
+          </default>
+          <default class="left_right_finger">
+            <joint range="-0.057 -0.021"/>
+          </default>
+        </default>
+        <default class="left_visual">
+          <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" material="black"/>
+        </default>
+        <default class="left_collision">
+          <geom type="mesh" group="3"/>
+          <default class="left_finger_collision">
+            <geom condim="4" solref="0.01" solimp="2 1 0.01"/>
+          </default>
+        </default>
+      </default>
+    </default>
+    <default class="right_main">
+      <default class="right_vx300s">
+        <general forcerange="-35 35" biastype="affine" biasprm="0 -1"/>
+        <default class="right_waist">
+          <joint range="-3.14158 3.14158" damping="2.86"/>
+          <general ctrlrange="-3.14158 3.14158" gainprm="25" biasprm="0 -25"/>
+        </default>
+        <default class="right_shoulder">
+          <joint range="-1.85005 1.25664" armature="0.004" damping="6.25" frictionloss="0.06"/>
+          <general ctrlrange="-1.85005 1.25664" forcerange="-57 57" gainprm="76" biasprm="0 -76"/>
+        </default>
+        <default class="right_elbow">
+          <joint range="-1.76278 1.6057" armature="0.072" damping="8.15" frictionloss="1.74"/>
+          <general ctrlrange="-1.76278 1.6057" forcerange="-25 25" gainprm="106" biasprm="0 -106"/>
+        </default>
+        <default class="right_forearm_roll">
+          <joint range="-3.14158 3.14158" armature="0.06" damping="3.07"/>
+          <general ctrlrange="-3.14158 3.14158" forcerange="-10 10" gainprm="35" biasprm="0 -35"/>
+        </default>
+        <default class="right_wrist_angle">
+          <joint range="-1.8675 2.23402" damping="1.18"/>
+          <general ctrlrange="-1.8675 2.23402" gainprm="8" biasprm="0 -8"/>
+        </default>
+        <default class="right_wrist_rotate">
+          <joint range="-3.14158 3.14158" damping="0.78"/>
+          <general ctrlrange="-3.14158 3.14158" gainprm="7" biasprm="0 -7"/>
+        </default>
+        <default class="right_finger">
+          <joint type="slide" armature="0.251" damping="10"/>
+          <general ctrlrange="0.021 0.057" gainprm="300" biasprm="0 -300"/>
+          <default class="right_left_finger">
+            <joint range="0.021 0.057"/>
+          </default>
+          <default class="right_right_finger">
+            <joint range="-0.057 -0.021"/>
+          </default>
+        </default>
+        <default class="right_visual">
+          <geom type="mesh" contype="0" conaffinity="0" group="2" density="0" material="black"/>
+        </default>
+        <default class="right_collision">
+          <geom type="mesh" group="3"/>
+          <default class="right_finger_collision">
+            <geom condim="4" solref="0.01" solimp="2 1 0.01"/>
+          </default>
+        </default>
+      </default>
+    </default>
+    <default class="plate_main">
+      <default class="plate_visual">
+        <geom type="mesh" contype="0" conaffinity="0" group="1" density="100"/>
+      </default>
+      <default class="plate_collision">
+        <geom solref="0.004" solimp="0.95 0.98" density="100" rgba="1 1 1 0.25"/>
+      </default>
+      <default class="plate_region">
+        <geom contype="0" conaffinity="0" group="1" rgba="0 1 0 0"/>
+      </default>
+    </default>
+  </default>
+
+  <asset>
+    <texture type="skybox" colorspace="auto" name="skybox" builtin="gradient" rgb1="0.3 0.5 0.7" rgb2="0 0 0" width="512" height="3072"/>
+    <texture type="2d" colorspace="auto" name="groundplane" builtin="checker" mark="edge" rgb1="0.2 0.3 0.4" rgb2="0.1 0.2 0.3" markrgb="0.8 0.8 0.8" width="300" height="300"/>
+    <texture type="2d" colorspace="linear" name="left_interbotix_black" file="interbotix_black.png"/>
+    <texture type="2d" colorspace="linear" name="right_interbotix_black" file="interbotix_black.png"/>
+    <texture type="2d" colorspace="linear" name="plate_Tray001_material" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/visual/T_Tray001_BC001.png"/>
+    <material name="groundplane" texture="groundplane" texrepeat="5 5" reflectance="0.2"/>
+    <material name="table_mat" rgba="0.72 0.6 0.44 1"/>
+    <material name="leg_mat" rgba="0.25 0.25 0.28 1"/>
+    <material name="left_black" texture="left_interbotix_black"/>
+    <material name="right_black" texture="right_interbotix_black"/>
+    <material name="plate_Tray001_material" texture="plate_Tray001_material" specular="0.310345" shininess="0.141421"/>
+    <mesh name="left_vx300s_1_base" file="vx300s_1_base.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_2_shoulder" file="vx300s_2_shoulder.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_3_upper_arm" file="vx300s_3_upper_arm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_4_upper_forearm" file="vx300s_4_upper_forearm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_5_lower_forearm" file="vx300s_5_lower_forearm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_6_wrist" file="vx300s_6_wrist.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_7_gripper" file="vx300s_7_gripper.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_8_gripper_prop" file="vx300s_8_gripper_prop.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_9_gripper_bar" file="vx300s_9_gripper_bar.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="left_vx300s_10_gripper_finger" file="vx300s_10_gripper_finger.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_1_base" file="vx300s_1_base.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_2_shoulder" file="vx300s_2_shoulder.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_3_upper_arm" file="vx300s_3_upper_arm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_4_upper_forearm" file="vx300s_4_upper_forearm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_5_lower_forearm" file="vx300s_5_lower_forearm.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_6_wrist" file="vx300s_6_wrist.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_7_gripper" file="vx300s_7_gripper.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_8_gripper_prop" file="vx300s_8_gripper_prop.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_9_gripper_bar" file="vx300s_9_gripper_bar.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="right_vx300s_10_gripper_finger" file="vx300s_10_gripper_finger.stl" scale="0.001 0.001 0.001"/>
+    <mesh name="plate_Tray001_vis" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/visual/Tray001.obj"/>
+    <mesh name="plate_Tray001_collision_0_0" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_0.obj"/>
+    <mesh name="plate_Tray001_collision_0_1" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_1.obj"/>
+    <mesh name="plate_Tray001_collision_0_2" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_2.obj"/>
+    <mesh name="plate_Tray001_collision_0_3" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_3.obj"/>
+    <mesh name="plate_Tray001_collision_0_4" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_4.obj"/>
+    <mesh name="plate_Tray001_collision_0_5" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_5.obj"/>
+    <mesh name="plate_Tray001_collision_0_6" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_6.obj"/>
+    <mesh name="plate_Tray001_collision_0_7" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_7.obj"/>
+    <mesh name="plate_Tray001_collision_0_8" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_8.obj"/>
+    <mesh name="plate_Tray001_collision_0_9" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_9.obj"/>
+    <mesh name="plate_Tray001_collision_0_10" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_10.obj"/>
+    <mesh name="plate_Tray001_collision_0_11" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_11.obj"/>
+    <mesh name="plate_Tray001_collision_0_12" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_12.obj"/>
+    <mesh name="plate_Tray001_collision_0_13" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_13.obj"/>
+    <mesh name="plate_Tray001_collision_0_14" file="/home/sid/projects25/src/robocasa/robocasa/models/assets/objects/lightwheel/tray/Tray001/collision/Tray001_collision_0_14.obj"/>
+  </asset>
+
+  <worldbody>
+    <geom name="floor" size="0 0 0.05" type="plane" material="groundplane"/>
+    <camera name="front" pos="1.15 0 1.15" quat="0.573635 0.413453 0.413453 0.573635" resolution="224 224" fovy="58"/>
+    <light pos="0 0 0" dir="0.276172 -0.276172 -0.920575" type="directional" ambient="0.1 0.1 0.1" diffuse="0.45 0.45 0.45" specular="0.05 0.05 0.05"/>
+    <light pos="0 0 0" dir="-0.357771 0.268328 -0.894427" type="directional" castshadow="false" ambient="0.1 0.1 0.1" diffuse="0.28 0.28 0.28" specular="0.05 0.05 0.05"/>
+    <body name="table" pos="0.05 0 0.73">
+      <geom name="table_top" size="0.6 0.7 0.02" type="box" material="table_mat"/>
+    </body>
+    <body name="leg0" pos="0.6 0.65 0.355">
+      <geom name="leg0_g" size="0.03 0.355" type="cylinder" material="leg_mat"/>
+    </body>
+    <body name="leg1" pos="0.6 -0.65 0.355">
+      <geom name="leg1_g" size="0.03 0.355" type="cylinder" material="leg_mat"/>
+    </body>
+    <body name="leg2" pos="-0.5 0.65 0.355">
+      <geom name="leg2_g" size="0.03 0.355" type="cylinder" material="leg_mat"/>
+    </body>
+    <body name="leg3" pos="-0.5 -0.65 0.355">
+      <geom name="leg3_g" size="0.03 0.355" type="cylinder" material="leg_mat"/>
+    </body>
+    <body name="left_base_link" childclass="left_vx300s" pos="0 0.45 0.75" gravcomp="1">
+      <inertial pos="-0.0534774 -0.000562575 0.0205961" quat="-0.00292324 0.712517 0.00480387 0.701633" mass="0.969034" diaginertia="0.0071633 0.00602451 0.00169819"/>
+      <geom class="left_visual" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_1_base"/>
+      <geom class="left_collision" quat="0.707107 0 0 0.707107" mesh="left_vx300s_1_base"/>
+      <body name="left_shoulder_link" pos="0 0 0.079" gravcomp="1">
+        <inertial pos="0.000259233 -3.3552e-06 0.0116129" quat="-0.476119 0.476083 0.52279 0.522826" mass="0.798614" diaginertia="0.00120156 0.00113744 0.0009388"/>
+        <joint name="left_waist" class="left_waist" pos="0 0 0" axis="0 0 1"/>
+        <geom class="left_visual" pos="0 0 -0.003" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_2_shoulder"/>
+        <geom class="left_collision" pos="0 0 -0.003" quat="0.707107 0 0 0.707107" mesh="left_vx300s_2_shoulder"/>
+        <body name="left_upper_arm_link" pos="0 0 0.04805" gravcomp="1">
+          <inertial pos="0.0206949 4e-10 0.226459" quat="0 0.0728458 0 0.997343" mass="0.792592" diaginertia="0.00911338 0.008925 0.000759317"/>
+          <joint name="left_shoulder" class="left_shoulder" pos="0 0 0" axis="0 1 0"/>
+          <geom class="left_visual" pos="0 0 0" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_3_upper_arm"/>
+          <geom class="left_collision" pos="0 0 0" quat="0.707107 0 0 0.707107" mesh="left_vx300s_3_upper_arm"/>
+          <body name="left_upper_forearm_link" pos="0.05955 0 0.3" gravcomp="1">
+            <inertial pos="0.105723 0 0" quat="-0.000621631 0.704724 0.0105292 0.709403" mass="0.322228" diaginertia="0.00144107 0.00134228 0.000152047"/>
+            <joint name="left_elbow" class="left_elbow" pos="0 0 0" axis="0 1 0"/>
+            <geom class="left_visual" material="left_black" mesh="left_vx300s_4_upper_forearm"/>
+            <geom class="left_collision" mesh="left_vx300s_4_upper_forearm"/>
+            <body name="left_lower_forearm_link" pos="0.2 0 0" gravcomp="1">
+              <inertial pos="0.0513477 0.00680462 0" quat="-0.702604 -0.0796724 -0.702604 0.0796724" mass="0.414823" diaginertia="0.0005911 0.000546493 0.000155707"/>
+              <joint name="left_forearm_roll" class="left_forearm_roll" pos="0 0 0" axis="1 0 0"/>
+              <geom class="left_visual" pos="0 0 0" quat="0 1 0 0" material="left_black" mesh="left_vx300s_5_lower_forearm"/>
+              <geom class="left_collision" pos="0 0 0" quat="0 1 0 0" mesh="left_vx300s_5_lower_forearm"/>
+              <body name="left_wrist_link" pos="0.1 0 0" gravcomp="1">
+                <inertial pos="0.046743 -7.6652e-06 0.010565" quat="-0.00100191 0.544586 0.0026583 0.8387" mass="0.115395" diaginertia="5.45707e-05 4.63101e-05 4.32692e-05"/>
+                <joint name="left_wrist_angle" class="left_wrist_angle" pos="0 0 0" axis="0 1 0"/>
+                <geom class="left_visual" pos="0 0 0" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_6_wrist"/>
+                <geom class="left_collision" pos="0 0 0" quat="0.707107 0 0 0.707107" mesh="left_vx300s_6_wrist"/>
+                <body name="left_gripper_link" pos="0.069744 0 0" gravcomp="1">
+                  <inertial pos="0.0395662 -2.56311e-07 0.00400649" quat="0.62033 0.619916 -0.339682 0.339869" mass="0.251652" diaginertia="0.000689546 0.000650316 0.000468142"/>
+                  <joint name="left_wrist_rotate" class="left_wrist_rotate" pos="0 0 0" axis="1 0 0"/>
+                  <geom class="left_visual" pos="-0.02 0 0" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_7_gripper"/>
+                  <geom class="left_collision" pos="-0.02 0 0" quat="0.707107 0 0 0.707107" mesh="left_vx300s_7_gripper"/>
+                  <geom class="left_visual" pos="-0.020175 0 0" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_9_gripper_bar"/>
+                  <geom class="left_collision" pos="-0.020175 0 0" quat="0.707107 0 0 0.707107" mesh="left_vx300s_9_gripper_bar"/>
+                  <site name="left_pinch" pos="0.1 0 0" group="4" rgba="0.6 0.3 0.3 1"/>
+                  <site name="left_eef" pos="0.1 0 0" size="0.008" group="4"/>
+                  <camera name="left_wrist" pos="0.025 0 0.02" quat="0.5 -0.5 -0.5 0.5" resolution="224 224" fovy="70"/>
+                  <body name="left_gripper_prop_link" pos="0.0485 0 0" gravcomp="1">
+                    <inertial pos="0.002378 2.85e-08 0" quat="0 0 0.897698 0.440611" mass="0.008009" diaginertia="4.2979e-06 2.8868e-06 1.5314e-06"/>
+                    <geom class="left_visual" pos="-0.0685 0 0" quat="0.707107 0 0 0.707107" material="left_black" mesh="left_vx300s_8_gripper_prop"/>
+                    <geom class="left_collision" pos="-0.0685 0 0" quat="0.707107 0 0 0.707107" mesh="left_vx300s_8_gripper_prop"/>
+                  </body>
+                  <body name="left_left_finger_link" pos="0.0687 0 0" gravcomp="1">
+                    <inertial pos="0.017344 -0.0060692 0" quat="0.449364 0.449364 -0.54596 -0.54596" mass="0.034796" diaginertia="2.48003e-05 1.417e-05 1.20797e-05"/>
+                    <joint name="left_left_finger" class="left_left_finger" pos="0 0 0" axis="0 1 0"/>
+                    <geom class="left_visual" pos="-0.0404 -0.0575 0" quat="-0.5 0.5 -0.5 0.5" material="left_black" mesh="left_vx300s_10_gripper_finger"/>
+                    <geom name="left_left_finger_pad_0" class="left_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 -0.0125 0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_1" class="left_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 -0.0125 -0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_2" class="left_finger_collision" size="0.01058 0.01058 0.001" pos="0.0571 -0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_3" class="left_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 -0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_4" class="left_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 -0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_5" class="left_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 -0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_6" class="left_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 -0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_7" class="left_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 -0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_left_finger_pad_8" class="left_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 -0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <site name="left_left_finger_ft_site" pos="0 0 0" group="4"/>
+                  </body>
+                  <body name="left_right_finger_link" pos="0.0687 0 0" gravcomp="1">
+                    <inertial pos="0.017344 0.0060692 0" quat="0.44937 -0.44937 0.545955 -0.545955" mass="0.034796" diaginertia="2.48002e-05 1.417e-05 1.20798e-05"/>
+                    <joint name="left_right_finger" class="left_right_finger" pos="0 0 0" axis="0 1 0"/>
+                    <geom class="left_visual" pos="-0.0404 0.0575 0" quat="0.5 0.5 0.5 0.5" material="left_black" mesh="left_vx300s_10_gripper_finger"/>
+                    <geom name="left_right_finger_pad_0" class="left_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 0.0125 0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_1" class="left_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 0.0125 -0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_2" class="left_finger_collision" size="0.01058 0.01058 0.001" pos="0.0571 0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_3" class="left_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_4" class="left_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_5" class="left_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_6" class="left_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_7" class="left_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="left_right_finger_pad_8" class="left_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <site name="left_right_finger_ft_site" pos="0 0 0" group="4"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="right_base_link" childclass="right_vx300s" pos="0 -0.45 0.75" gravcomp="1">
+      <inertial pos="-0.0534774 -0.000562575 0.0205961" quat="-0.00292324 0.712517 0.00480387 0.701633" mass="0.969034" diaginertia="0.0071633 0.00602451 0.00169819"/>
+      <geom class="right_visual" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_1_base"/>
+      <geom class="right_collision" quat="0.707107 0 0 0.707107" mesh="right_vx300s_1_base"/>
+      <body name="right_shoulder_link" pos="0 0 0.079" gravcomp="1">
+        <inertial pos="0.000259233 -3.3552e-06 0.0116129" quat="-0.476119 0.476083 0.52279 0.522826" mass="0.798614" diaginertia="0.00120156 0.00113744 0.0009388"/>
+        <joint name="right_waist" class="right_waist" pos="0 0 0" axis="0 0 1"/>
+        <geom class="right_visual" pos="0 0 -0.003" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_2_shoulder"/>
+        <geom class="right_collision" pos="0 0 -0.003" quat="0.707107 0 0 0.707107" mesh="right_vx300s_2_shoulder"/>
+        <body name="right_upper_arm_link" pos="0 0 0.04805" gravcomp="1">
+          <inertial pos="0.0206949 4e-10 0.226459" quat="0 0.0728458 0 0.997343" mass="0.792592" diaginertia="0.00911338 0.008925 0.000759317"/>
+          <joint name="right_shoulder" class="right_shoulder" pos="0 0 0" axis="0 1 0"/>
+          <geom class="right_visual" pos="0 0 0" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_3_upper_arm"/>
+          <geom class="right_collision" pos="0 0 0" quat="0.707107 0 0 0.707107" mesh="right_vx300s_3_upper_arm"/>
+          <body name="right_upper_forearm_link" pos="0.05955 0 0.3" gravcomp="1">
+            <inertial pos="0.105723 0 0" quat="-0.000621631 0.704724 0.0105292 0.709403" mass="0.322228" diaginertia="0.00144107 0.00134228 0.000152047"/>
+            <joint name="right_elbow" class="right_elbow" pos="0 0 0" axis="0 1 0"/>
+            <geom class="right_visual" material="right_black" mesh="right_vx300s_4_upper_forearm"/>
+            <geom class="right_collision" mesh="right_vx300s_4_upper_forearm"/>
+            <body name="right_lower_forearm_link" pos="0.2 0 0" gravcomp="1">
+              <inertial pos="0.0513477 0.00680462 0" quat="-0.702604 -0.0796724 -0.702604 0.0796724" mass="0.414823" diaginertia="0.0005911 0.000546493 0.000155707"/>
+              <joint name="right_forearm_roll" class="right_forearm_roll" pos="0 0 0" axis="1 0 0"/>
+              <geom class="right_visual" pos="0 0 0" quat="0 1 0 0" material="right_black" mesh="right_vx300s_5_lower_forearm"/>
+              <geom class="right_collision" pos="0 0 0" quat="0 1 0 0" mesh="right_vx300s_5_lower_forearm"/>
+              <body name="right_wrist_link" pos="0.1 0 0" gravcomp="1">
+                <inertial pos="0.046743 -7.6652e-06 0.010565" quat="-0.00100191 0.544586 0.0026583 0.8387" mass="0.115395" diaginertia="5.45707e-05 4.63101e-05 4.32692e-05"/>
+                <joint name="right_wrist_angle" class="right_wrist_angle" pos="0 0 0" axis="0 1 0"/>
+                <geom class="right_visual" pos="0 0 0" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_6_wrist"/>
+                <geom class="right_collision" pos="0 0 0" quat="0.707107 0 0 0.707107" mesh="right_vx300s_6_wrist"/>
+                <body name="right_gripper_link" pos="0.069744 0 0" gravcomp="1">
+                  <inertial pos="0.0395662 -2.56311e-07 0.00400649" quat="0.62033 0.619916 -0.339682 0.339869" mass="0.251652" diaginertia="0.000689546 0.000650316 0.000468142"/>
+                  <joint name="right_wrist_rotate" class="right_wrist_rotate" pos="0 0 0" axis="1 0 0"/>
+                  <geom class="right_visual" pos="-0.02 0 0" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_7_gripper"/>
+                  <geom class="right_collision" pos="-0.02 0 0" quat="0.707107 0 0 0.707107" mesh="right_vx300s_7_gripper"/>
+                  <geom class="right_visual" pos="-0.020175 0 0" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_9_gripper_bar"/>
+                  <geom class="right_collision" pos="-0.020175 0 0" quat="0.707107 0 0 0.707107" mesh="right_vx300s_9_gripper_bar"/>
+                  <site name="right_pinch" pos="0.1 0 0" group="4" rgba="0.6 0.3 0.3 1"/>
+                  <site name="right_eef" pos="0.1 0 0" size="0.008" group="4"/>
+                  <camera name="right_wrist" pos="0.05 0 0.02" quat="0.5 -0.5 -0.5 0.5" resolution="224 224" fovy="70"/>
+                  <body name="right_gripper_prop_link" pos="0.0485 0 0" gravcomp="1">
+                    <inertial pos="0.002378 2.85e-08 0" quat="0 0 0.897698 0.440611" mass="0.008009" diaginertia="4.2979e-06 2.8868e-06 1.5314e-06"/>
+                    <geom class="right_visual" pos="-0.0685 0 0" quat="0.707107 0 0 0.707107" material="right_black" mesh="right_vx300s_8_gripper_prop"/>
+                    <geom class="right_collision" pos="-0.0685 0 0" quat="0.707107 0 0 0.707107" mesh="right_vx300s_8_gripper_prop"/>
+                  </body>
+                  <body name="right_left_finger_link" pos="0.0687 0 0" gravcomp="1">
+                    <inertial pos="0.017344 -0.0060692 0" quat="0.449364 0.449364 -0.54596 -0.54596" mass="0.034796" diaginertia="2.48003e-05 1.417e-05 1.20797e-05"/>
+                    <joint name="right_left_finger" class="right_left_finger" pos="0 0 0" axis="0 1 0"/>
+                    <geom class="right_visual" pos="-0.0404 -0.0575 0" quat="-0.5 0.5 -0.5 0.5" material="right_black" mesh="right_vx300s_10_gripper_finger"/>
+                    <geom name="right_left_finger_pad_0" class="right_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 -0.0125 0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_1" class="right_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 -0.0125 -0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_2" class="right_finger_collision" size="0.01058 0.01058 0.001" pos="0.0571 -0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_3" class="right_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 -0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_4" class="right_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 -0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_5" class="right_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 -0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_6" class="right_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 -0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_7" class="right_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 -0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_left_finger_pad_8" class="right_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 -0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <site name="right_left_finger_ft_site" pos="0 0 0" group="4"/>
+                  </body>
+                  <body name="right_right_finger_link" pos="0.0687 0 0" gravcomp="1">
+                    <inertial pos="0.017344 0.0060692 0" quat="0.44937 -0.44937 0.545955 -0.545955" mass="0.034796" diaginertia="2.48002e-05 1.417e-05 1.20798e-05"/>
+                    <joint name="right_right_finger" class="right_right_finger" pos="0 0 0" axis="0 1 0"/>
+                    <geom class="right_visual" pos="-0.0404 0.0575 0" quat="0.5 0.5 0.5 0.5" material="right_black" mesh="right_vx300s_10_gripper_finger"/>
+                    <geom name="right_right_finger_pad_0" class="right_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 0.0125 0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_1" class="right_finger_collision" size="0.01405 0.01405 0.001" pos="0.0478 0.0125 -0.0106" quat="0.653011 0.653011 -0.271251 0.271251" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_2" class="right_finger_collision" size="0.01058 0.01058 0.001" pos="0.0571 0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_3" class="right_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_4" class="right_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 0.0125 0" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_5" class="right_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_6" class="right_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 0.0125 0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_7" class="right_finger_collision" size="0.01 0.0105 0.001" pos="0.0378 0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <geom name="right_right_finger_pad_8" class="right_finger_collision" size="0.015 0.0105 0.001" pos="0.0128 0.0125 -0.02" quat="0.707107 0.707107 0 0" type="box" friction="4 0.05"/>
+                    <site name="right_right_finger_ft_site" pos="0 0 0" group="4"/>
+                  </body>
+                </body>
+              </body>
+            </body>
+          </body>
+        </body>
+      </body>
+    </body>
+    <body name="plate_root" pos="0.34 -0.45 0.752633">
+      <joint type="free"/>
+      <site name="tray_pose_site" pos="0 0 0" group="4"/>
+      <body name="plate_object">
+        <geom class="plate_visual" group="2" material="plate_Tray001_material" mesh="plate_Tray001_vis"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_0"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_1"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_2"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_3"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_4"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_5"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_6"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_7"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_8"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_9"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_10"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_11"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_12"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_13"/>
+        <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_14"/>
+        <geom name="plate_reg_bbox" class="plate_region" size="0.200268 0.112389 0.0131907" pos="0 0 0.0110579" type="box" group="4"/>
+      </body>
+    </body>
+    <body name="obj_root" pos="0.34 0.45 0.808">
+      <joint type="free"/>
+      <geom name="obj_can" size="0.033 0.0575" type="cylinder" group="2" friction="2 0.05 0.002" solref="0.005" mass="0.015" rgba="0.72 0.11 0.13 1"/>
+      <site name="can_pose_site" pos="0 0 0" group="4"/>
+    </body>
+  </worldbody>
+
+  <contact>
+    <exclude body1="left_base_link" body2="left_shoulder_link"/>
+    <exclude body1="right_base_link" body2="right_shoulder_link"/>
+  </contact>
+
+  <equality>
+    <joint joint1="left_left_finger" joint2="left_right_finger" polycoef="0 -1 0 0 0"/>
+    <joint joint1="right_left_finger" joint2="right_right_finger" polycoef="0 -1 0 0 0"/>
+  </equality>
+
+  <actuator>
+    <general name="left_waist" class="left_waist" joint="left_waist"/>
+    <general name="left_shoulder" class="left_shoulder" joint="left_shoulder"/>
+    <general name="left_elbow" class="left_elbow" joint="left_elbow"/>
+    <general name="left_forearm_roll" class="left_forearm_roll" joint="left_forearm_roll"/>
+    <general name="left_wrist_angle" class="left_wrist_angle" joint="left_wrist_angle"/>
+    <general name="left_wrist_rotate" class="left_wrist_rotate" joint="left_wrist_rotate"/>
+    <general name="left_gripper" class="left_finger" joint="left_left_finger" forcerange="-60 60" gainprm="1500" biasprm="0 -1500"/>
+    <general name="right_waist" class="right_waist" joint="right_waist"/>
+    <general name="right_shoulder" class="right_shoulder" joint="right_shoulder"/>
+    <general name="right_elbow" class="right_elbow" joint="right_elbow"/>
+    <general name="right_forearm_roll" class="right_forearm_roll" joint="right_forearm_roll"/>
+    <general name="right_wrist_angle" class="right_wrist_angle" joint="right_wrist_angle"/>
+    <general name="right_wrist_rotate" class="right_wrist_rotate" joint="right_wrist_rotate"/>
+    <general name="right_gripper" class="right_finger" joint="right_left_finger" forcerange="-60 60" gainprm="1500" biasprm="0 -1500"/>
+  </actuator>
+
+  <sensor>
+    <framepos objtype="site" objname="can_pose_site" name="can_pose_pos"/>
+    <framequat objtype="site" objname="can_pose_site" name="can_pose_quat"/>
+    <framepos objtype="site" objname="tray_pose_site" name="tray_pose_pos"/>
+    <framequat objtype="site" objname="tray_pose_site" name="tray_pose_quat"/>
+    <force site="left_left_finger_ft_site" name="left_left_finger_ft_force"/>
+    <torque site="left_left_finger_ft_site" name="left_left_finger_ft_torque"/>
+    <force site="left_right_finger_ft_site" name="left_right_finger_ft_force"/>
+    <torque site="left_right_finger_ft_site" name="left_right_finger_ft_torque"/>
+    <force site="right_left_finger_ft_site" name="right_left_finger_ft_force"/>
+    <torque site="right_left_finger_ft_site" name="right_left_finger_ft_torque"/>
+    <force site="right_right_finger_ft_site" name="right_right_finger_ft_force"/>
+    <torque site="right_right_finger_ft_site" name="right_right_finger_ft_torque"/>
+  </sensor>
+
+  <keyframe>
+    <key name="home" qpos="-0.128573 -0.426149 1.0695 2.6865 0.590412 0.1658 0.0570001 -0.0570001 -0.28668 -0.180098 0.962802 1.9393 1.06833 0.4709 0.0570001 -0.0570001 0.34 -0.45 0.752127 1 -8.21247e-06 -8.97841e-06 4.49735e-08 0.34 0.450001 0.807465 1 -6.375e-06 -2.47354e-06 -1.91299e-08" ctrl="-0.128573 -0.426149 1.0695 2.6865 0.590412 0.1658 0.0570001 -0.28668 -0.180098 0.962802 1.9393 1.06833 0.4709 0.0570001"/>
+  </keyframe>
+</mujoco>

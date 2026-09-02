@@ -44,6 +44,7 @@ class ArmIK:
         eef_frame: str,
         joint_names: list[str],
         eef_offset: tuple[float, float, float] = (0.0, 0.0, 0.0),
+        eef_quat: tuple[float, float, float, float] = (1.0, 0.0, 0.0, 0.0),
         damping: float = 0.05,
         gain: float = 1.0,
         dq_max: float = 0.10,
@@ -58,7 +59,7 @@ class ArmIK:
         # The MJCF puts the eef site at an offset from the gripper body, and the recorded action is
         # that site's pose. Add a matching offset frame here or IK will servo the wrist instead of the
         # pinch point, a constant few-centimetre bias in every demo.
-        if any(eef_offset):
+        if any(eef_offset) or any(abs(v) > 1e-9 for v in np.asarray(eef_quat)[1:]):
             pf = self.model.frames[parent_fid]
             # pin.Frame's `placement` is relative to the parent joint, not to the parent frame, even
             # though a parent frame id is also passed. So the offset must be composed onto the parent
@@ -67,9 +68,21 @@ class ArmIK:
             # 107.0 mm (Panda) from the real gripper, so every IK solve converged tidily onto the wrong
             # point and the arm reached past the object. Composing correctly gives 0.003 mm / 0.000 mm
             # against MuJoCo FK, and check_parity.py asserts it for both robots.
+            # `eef_quat` rotates the tool frame onto the SOURCE embodiment's axis convention
+            # (site -x = approach, site y = jaw). It has to be applied here as well as on the MJCF
+            # site: the recorded action is this frame's rotation, so a target whose site axes are
+            # laid out differently reads every commanded orientation wrong. On the Panda that was
+            # 59 deg of approach-direction error. check_parity.check_eef_frame compares this frame
+            # against the MJCF site and is what catches the two drifting apart.
+            w, x, y, z = (float(v) for v in eef_quat)
+            R_eef = np.array([
+                [1 - 2*(y*y + z*z), 2*(x*y - z*w),     2*(x*z + y*w)],
+                [2*(x*y + z*w),     1 - 2*(x*x + z*z), 2*(y*z - x*w)],
+                [2*(x*z - y*w),     2*(y*z + x*w),     1 - 2*(x*x + y*y)],
+            ])
             self.fid = self.model.addFrame(
                 pin.Frame(f"{eef_frame}_eef", pf.parentJoint, parent_fid,
-                          pf.placement * pin.SE3(np.eye(3),
+                          pf.placement * pin.SE3(R_eef,
                                                  np.array(eef_offset, dtype=float)),
                           pin.FrameType.OP_FRAME))
             self.data = self.model.createData()

@@ -129,7 +129,7 @@ def check_kinematics(n_samples: int = 500, tol_mm: float = 0.5) -> bool:
     import numpy as np
 
     if KEY != "rebot":
-        print(f"SKIP  kinematic check is reBot-specific (Panda's URDF is MJCF-derived and was "
+        print(f"SKIP  kinematic check is reBot-specific (other targets ship URDF and MJCF from one source, "
               f"verified at 0.0000 mm); skipped for {KEY}")
         return True
     if not L.SEEED_URDF.exists():
@@ -196,7 +196,8 @@ def check_eef_frame(n_samples: int = 300, tol_mm: float = 0.5) -> bool:
     worst = 0.0
     for side in L.SIDES:
         jn = [L.prefixed(side, j) for j in r["arm_joints"]]
-        ik = ArmIK(str(URDF), r["urdf_eef_frame"].format(side=side), jn, r["eef_offset"])
+        ik = ArmIK(str(URDF), r["urdf_eef_frame"].format(side=side), jn, r["eef_offset"],
+                   r.get("eef_quat", (1.0, 0.0, 0.0, 0.0)))
         bid = mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, L.prefixed(side, r["eef_body"]))
         qadr = [m.jnt_qposadr[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)] for n in jn]
         jr = np.array([m.jnt_range[mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, n)]
@@ -218,7 +219,7 @@ def check_eef_frame(n_samples: int = 300, tol_mm: float = 0.5) -> bool:
     return ok
 
 
-def check_tcp(tol_mm: float = 5.0) -> bool:
+def check_tcp(tol_mm: float | None = None) -> bool:
     """The tool point must sit where the fingers actually close.
 
     `eef_offset` moves the IK's target, and the recorded action, from the gripper body to the
@@ -228,6 +229,10 @@ def check_tcp(tol_mm: float = 5.0) -> bool:
     it presented as "the gripper cannot grasp anything"; Panda was 17.9 mm out, which biased
     every grasp. scripts/measure_tcp.py prints the correct value.
     """
+    # Per-robot, because the reBot's offset is locked by the recorded dataset and differs from a
+    # fresh measurement by a known 15.6 mm. See ROBOTS["rebot"]["eef_offset"].
+    if tol_mm is None:
+        tol_mm = float(L.ROBOTS[KEY].get("tcp_tol_mm", 5.0))
     sys.path.insert(0, str(L.ROOT / "scripts"))
     import measure_tcp
 

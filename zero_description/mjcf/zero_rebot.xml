@@ -1,11 +1,11 @@
 <mujoco model="zero_rebot">
-  <compiler angle="radian" meshdir="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/"/>
+  <compiler angle="radian" meshdir="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/" texturedir="/home/sid/projects25/src/ZERO/robots/seeed_rebot_devarm/assets/"/>
 
   <option impratio="10" integrator="implicitfast" cone="elliptic">
     <flag multiccd="enable"/>
   </option>
 
-  <size nkey="5"/>
+  <size nkey="1"/>
 
   <visual>
     <global offwidth="1280" offheight="720"/>
@@ -670,6 +670,7 @@
     </body>
     <body name="plate_root" pos="0.34 -0.45 0.752633">
       <joint type="free"/>
+      <site name="tray_pose_site" pos="0 0 0" group="4"/>
       <body name="plate_object">
         <geom class="plate_visual" group="2" material="plate_Tray001_material" mesh="plate_Tray001_vis"/>
         <geom class="plate_collision" type="mesh" group="3" mesh="plate_Tray001_collision_0_0"/>
@@ -692,7 +693,8 @@
     </body>
     <body name="obj_root" pos="0.34 0.45 0.808">
       <joint type="free"/>
-      <geom name="obj_can" size="0.033 0.0575" type="cylinder" group="2" friction="1 0.02 0.002" solref="0.005" mass="0.015" rgba="0.72 0.11 0.13 1"/>
+      <geom name="obj_can" size="0.033 0.0575" type="cylinder" group="2" friction="2 0.05 0.002" solref="0.005" mass="0.015" rgba="0.72 0.11 0.13 1"/>
+      <site name="can_pose_site" pos="0 0 0" group="4"/>
     </body>
   </worldbody>
 
@@ -746,6 +748,10 @@
   </actuator>
 
   <sensor>
+    <framepos objtype="site" objname="can_pose_site" name="can_pose_pos"/>
+    <framequat objtype="site" objname="can_pose_site" name="can_pose_quat"/>
+    <framepos objtype="site" objname="tray_pose_site" name="tray_pose_pos"/>
+    <framequat objtype="site" objname="tray_pose_site" name="tray_pose_quat"/>
     <force site="left_gripper_joint1_ft_site" name="left_gripper_joint1_ft_force"/>
     <torque site="left_gripper_joint1_ft_site" name="left_gripper_joint1_ft_torque"/>
     <force site="left_gripper_joint2_ft_site" name="left_gripper_joint2_ft_force"/>
@@ -757,10 +763,6 @@
   </sensor>
 
   <keyframe>
-    <key name="left_home"/>
-    <key name="left_raised" qpos="0 0.7 1.1 0 0 0 0 0 0 0 0 0 0 0 0 0 0.34 0.45 0.808 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0 0.7 1.1 0 0 0 0 0 0 0 0 0 0 0 0 0"/>
-    <key name="right_home"/>
-    <key name="right_raised" qpos="0 0 0 0 0 0 0 0 0 0.7 1.1 0 0 0 0 0 0.34 0.45 0.808 1 0 0 0 0.34 -0.45 0.752633 1 0 0 0" ctrl="0 0 0 0 0 0 0 0 0 0.7 1.1 0 0 0 0 0"/>
-    <key name="home" qpos="0.111 0.966 0.322 0.543 0.239 -2.922 0.05 0.05 0.299 1.331 0.463 0.664 0.961 -2.716 0.05 0.05 0.34 -0.45 0.752633 1 0 0 0 0.34 0.45 0.808 1 0 0 0" ctrl="0.111 0.966 0.322 0.543 0.239 -2.922 0.05 0.05 0.299 1.331 0.463 0.664 0.961 -2.716 0.05 0.05"/>
+    <key name="home" qpos="0.111 0.966 0.322 0.543 0.239 -2.922 0.05 0.05 0.299 1.331 0.463 0.664 0.961 -2.716 0.05 0.05 0.34 -0.45 0.752127 1 -8.21247e-06 -8.97841e-06 4.49735e-08 0.34 0.450001 0.807465 1 -6.375e-06 -2.47354e-06 -1.91299e-08" ctrl="0.111 0.966 0.322 0.543 0.239 -2.922 0.05 0.05 0.299 1.331 0.463 0.664 0.961 -2.716 0.05 0.05"/>
   </keyframe>
 </mujoco>

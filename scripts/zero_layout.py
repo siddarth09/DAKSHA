@@ -103,6 +103,11 @@ SCENE_CAMS = {
     # "side":     ((0.30, -1.05, 1.10), 58),
 }
 WRIST_CAM_FOVY = 70          # wide: the object is only ~10 cm from the lens
+
+# Task objects whose live pose is exported as a ros2_control state interface. Named here because
+# gen_scene writes the MJCF framepos/framequat pair and gen_urdf writes the matching <sensor>, and
+# the two must agree; mujoco_ros2_control derives the MJCF names as <name>_pos and <name>_quat.
+OBJECT_POSE_SENSORS = ("can_pose", "tray_pose")
 WRIST_CAM_POS = (0.0, 0.0, 0.035)   # on gripper_end, just behind the finger roots
 # 224x224, the native input size for essentially every vision backbone a policy would use, so
 # nothing is resized at train time. Larger buys no fps back anyway, see SCENE_CAMS.
@@ -179,7 +184,7 @@ LOOK_AT = HANDOVER_POS
 # ======================================================================================
 # EMBODIMENT REGISTRY
 # ======================================================================================
-# The cross-embodiment chain is reBot (source) -> UR5e -> G1. Everything above this line is
+# The cross-embodiment chain is reBot (source) -> Panda -> G1. Everything above this line is
 # reBot-specific and is what the URDF generator, parity check and ros2_control path use, because
 # only the source embodiment needs teleoperation and ros2_control. Targets only need to be stepped
 # and IK'd, so they live here as plain MJCF specs.
@@ -241,7 +246,12 @@ PICK_PRIMITIVE = {
     "radius": 0.033,          # 66 mm across
     "half_height": 0.0575,    # 115 mm tall
     "rgba": (0.72, 0.11, 0.13, 1.0),
-    "friction": (1.0, 0.02, 0.002),   # torsional 4x the robocasa default: a can should not spin
+    # Raised from (1.0, 0.02) after the can kept rotating out of the jaw mid-carry. The policy
+    # grips ~5 mm below the rim, so the can hangs ~110 mm below the contact and the moment arm does
+    # the damage; torsional friction is what resists that, not squeeze. Simulated over the policy's
+    # own carry path, slip fell from 80.1 mm to 49.3 mm and then stopped improving, so this is the
+    # knee of the curve rather than an arbitrary large number. See "pad_friction" on the vx300s.
+    "friction": (2.0, 0.05, 0.002),
     # Contact time constant. MuJoCo's default 0.02 is deliberately soft for solver stability, and on
     # a grasped object that softness is visible: the pads sank 7.8 mm into a 66 mm can, which looks
     # like the gripper passing through it. 0.005 with a realistic gripper force brings that to 2.2 mm,
@@ -264,6 +274,24 @@ ROBOTS = {
         # flicked it away, which reads as the gripper passing through the object. The acceptance test
         # is symmetric pad clearance.
         "eef_offset": (-0.0109, 0.0000, 0.0050),
+        # LOCKED. All 82 recorded episodes were captured against this value, so it defines what
+        # "the tool point" means for the whole dataset and cannot be changed without invalidating
+        # them. scripts/measure_tcp.py now reports (-0.0256, 0, 0) instead, 15.6 mm away: this
+        # gripper's pads are flat parallel slabs, so the closest-point search is degenerate and the
+        # original number came from an arbitrary tie among thousands of equally-close pairs. The
+        # committed value is the empirically validated one, since the trained policy grasps at
+        # 3.3 mm closest approach with symmetric pad clearance. tcp_tol widens check_parity's
+        # assertion to cover the known gap rather than letting it fail silently.
+        "tcp_tol_mm": 20.0,
+        # THE SHARED TOOL CONVENTION, defined by this robot because it is the source: the eef
+        # site's +x points OUT of the gripper toward the object, and its y is the jaw axis.
+        # Identity here, since gripper_end already has that layout. Read it off the geometry, not
+        # off eef_offset: in the site frame this gripper's bbox runs x -148.0 to +10.9 mm, i.e.
+        # the body extends backwards toward the wrist and the object sits at +x. Independently
+        # confirmed by the wrist camera, which sits 90 mm at -x and looks along +x at the gripper.
+        # Every target must rotate its site onto this, or the same recorded rot6d aims the two
+        # grippers in different directions.
+        "eef_quat": (1.0, 0.0, 0.0, 0.0),
         "wrist_cam_pos": (-0.1009, 0.0, 0.0050),   # 90 mm back along -x, looking FRONT (+x)
         "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
         "base_sep": HANDOVER_SEP,
@@ -298,106 +326,246 @@ ROBOTS = {
         "arm_ctrl_joints": ("joint1", "joint2", "joint3", "joint4", "joint5", "joint6"),
         "grip_ctrl_joints": ("gripper_joint1", "gripper_joint2"),
     },
-    # UR5e. 6-DoF like the reBot (the Panda's 7 make the IK non-square), 964 mm reach, and it wears
-    # the reBot's own gripper via `graft_gripper`, so the wrist camera, which is mounted on the
-    # gripper, sees a geometrically identical scene on both robots. That is what lets a policy
-    # trained on the reBot drive this arm without re-recording a single episode.
-    "ur5e": {
-        "mjcf": Path("/home/sid/.cache/robot_descriptions/mujoco_menagerie/"
-                     "universal_robots_ur5e/ur5e.xml"),
-        "arm_joints": ("shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-                       "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"),
-        "gripper_joints": ("rg_gripper_joint1", "rg_gripper_joint2"),
-        "arm_ctrl_joints": ("shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-                            "wrist_1_joint", "wrist_2_joint", "wrist_3_joint"),
-        "grip_ctrl_joints": ("rg_gripper_joint1", "rg_gripper_joint2"),
-        "ros2_control_joints": ("shoulder_pan_joint", "shoulder_lift_joint", "elbow_joint",
-                                "wrist_1_joint", "wrist_2_joint", "wrist_3_joint",
-                                "rg_gripper_joint1", "rg_gripper_joint2"),
-        "actuators_match_joints": False,
-        "graft_gripper": {
-            "mjcf": PKG.parent / "robots" / "shared_gripper" / "rebot_gripper.xml",
-            "host_body": "wrist_3_link", "cut_body": None,
-            # 110 mm of standoff past the flange, mirroring the reBot's own link6 -> gripper_end
-            # offset. Without it the wrist camera (mounted 100 mm behind the gripper) sits inside the
-            # UR5e's wrist and the view is 66% black. At 110 mm the near-black fraction is 51.5%
-            # against the reBot's 51.4%: the arm is out of frame and what remains is the gripper.
-            "pos": (0.0, 0.21, 0.0),
-            "quat": (0.5, -0.5, -0.5, 0.5),
-        },
-        "eef_body": "rg_gripper_end",
-        "eef_offset": (-0.0109, 0.0000, 0.0050),      # the reBot's: same gripper
-        "grip_range": (0.0, 0.05),
-        "grip_force": 15.0,
-        "grip_ctrl_n": 2,
-        "wrist_cam_pos": (-0.1009, 0.0, 0.0050),      # identical to the reBot, in the same frame
-        "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
-        "base_x": -0.05,
-        "base_sep": 0.9,
-        # Solved with damped least squares against PICK_POS / PLACE_POS with a downward approach;
-        # both converge to 0.0 mm.
-        "home": {"left": (0.8084, -4.5682, 1.9402, -0.5136, -0.7324, -1.5708),
-                 "right": (1.0092, 3.4062, -2.2785, 2.0139, -0.1738, -1.5708)},
-        "urdf": None, "urdf_root": "base", "urdf_eef_frame": "{side}_rg_gripper_end",
-        "urdf_skip_links": (), "mesh_src": None, "mesh_glob": "*.obj", "mesh_remap": {},
-    },
 
-    "panda": {
-        # The ros2-ready copy, not menagerie's panda.xml. menagerie drives the gripper through a
-        # tendon actuator (`tendon="split"`, ctrlrange remapped to 0-255), which ros2_control cannot
-        # command by joint name; check_parity caught it as "finger_joint1 has no actuator". This
-        # version replaces it with a direct joint actuator on finger_joint1 and drops the tendon
-        # (ntendon 1 -> 0), ctrlrange 0-0.4.
-        "mjcf": ROOT / "robots" / "franka_emika_panda" / "panda_ros2.xml",
-        "arm_joints": tuple(f"joint{i}" for i in range(1, 8)),
-        "gripper_joints": ("finger_joint1", "finger_joint2"),
-        "eef_body": "hand",
-        # Measured with scripts/measure_tcp.py. The guessed 0.10 was 17.9 mm long, not enough to
-        # stop Panda's 80 mm fingers closing on things, but a constant bias in every recorded grasp
-        # pose. The two embodiments must agree on what "the tool point" means or the transfer number
-        # measures the discrepancy instead of the policy.
-        "eef_offset": (0.0049, 0.0000, 0.0602),
-        "wrist_cam_pos": (-0.0851, 0.0, 0.0602),   # 90 mm back along -x, looking FRONT (+x)
-        "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
-        # Panda reaches 1.19 m against the reBot's 0.91 and its base is bulkier, so it sits wider
-        # apart. Not yet put through the sensitivity sweep that set the reBot's numbers; run the
-        # Panda leg of scripts/reach_gate.py before trusting these.
-        "base_sep": HANDOVER_SEP,
-        # Panda sits further back than the reBot: its links are much bulkier and at base_x=-0.05 the
-        # two arms crowded the work area. Per-robot on purpose. What must stay identical across
-        # embodiments is the task (object and plate poses), not where the arms are bolted.
-        "base_x": -0.30,
-        # Searched, not menagerie keyframe 0: that pose aimed the gripper off to the side and the
-        # wrist cameras saw only table legs. scripts/findhome.py panda: aim 0.989, down 0.964.
-        "home": {
-            "left": (-0.550, 0.490, 0.624, -1.800, -0.358, 2.130, 1.018),
-            "right": (-0.512, 0.501, 0.577, -1.810, -0.350, 2.163, 1.014),
-        },
-        "grip_range": (0.0, 0.04),
-        "grip_force": 40.0,   # N. Panda finger_joint1 range [0, 0.04]
-        # Panda actuators are `actuator1..8`, not joint names, and there are 8 for 9 joints (one
-        # actuator drives both fingers, with an <equality> coupling them, the same topology as the
-        # reBot's gripper). Any name-based joint/actuator check must skip this robot.
+    # ---- Trossen ViperX 300s ----------------------------------------------------------
+    # The nearest thing to the reBot in menagerie, which is why it is the target: 6 arm DoF, a
+    # two-slide parallel jaw coupled by an <equality>, and reach 0.902 m max / 0.855 p95 against
+    # the reBot's 0.909 / 0.83. Its jaw is on local y exactly like the reBot's, so the recorded
+    # orientations mean nearly the same thing on it, which is what the Panda could not manage:
+    # with the eef frames reconciled, the Panda's left arm missed the recorded poses by 146 mm and
+    # 76 deg at its best placement.
+    # No gripper surgery needed either. `gripper` is already a joint actuator on `left_finger`
+    # with an <equality> coupling the pair, so ros2_control can command it by name, unlike
+    # menagerie's Panda (tendon) and Robotiq (tendon).
+    "vx300s": {
+        "mjcf": Path("/home/sid/.cache/robot_descriptions/mujoco_menagerie/"
+                     "trossen_vx300s/vx300s.xml"),
+        "arm_joints": ("waist", "shoulder", "elbow", "forearm_roll", "wrist_angle",
+                       "wrist_rotate"),
+        "gripper_joints": ("left_finger", "right_finger"),
+        "arm_ctrl_joints": ("waist", "shoulder", "elbow", "forearm_roll", "wrist_angle",
+                            "wrist_rotate"),
+        # One actuator; right_finger follows through the <equality>.
+        "grip_ctrl_joints": ("left_finger",),
+        "ros2_control_joints": ("waist", "shoulder", "elbow", "forearm_roll", "wrist_angle",
+                                "wrist_rotate", "left_finger"),
+        # menagerie names the arm actuators after their joints but calls the gripper one
+        # `gripper`, so a name-based joint/actuator check would miss it.
         "actuators_match_joints": False,
-        # URDF from siddarth09/Panda_mujoco, already proven with mujoco_ros2_control. MJCF-derived,
-        # so it agrees with menagerie exactly: FK checked over 400 configs at 0.0000 mm, unlike the
-        # reBot, whose independently-derived URDF had every joint axis inverted.
-        "urdf": ROOT / "robots" / "franka_emika_panda" / "panda_ros2.urdf",
-        # `link0` is Panda's real base. Its URDF also ships its own `world` link, which must be
-        # dropped: our generated file supplies a single shared `world` root for both arms, and two
-        # copies of `world` would make the tree a forest.
-        "urdf_root": "link0",
-        "urdf_eef_frame": "{side}_hand",
+        "eef_body": "gripper_link",
+        # menagerie's own `pinch` site, which is Trossen's authored grasp point rather than
+        # something we inferred. scripts/measure_tcp.py independently lands on (0.1025, 0, 0),
+        # agreeing to 2.5 mm, so the two corroborate each other.
+        "eef_offset": (0.1000, 0.0000, 0.0000),
+        "tcp_tol_mm": 5.0,
+        # Identity: this arm already matches the shared convention. Its gripper points along the
+        # body's +x and its jaw slides on y, exactly the reBot's layout, which is the main reason
+        # it is the target. Checked in the site frame: bbox x -100.0 to +36.5 mm, the same
+        # backward-extending shape as the reBot's -148.0 to +10.9.
+        "eef_quat": (1.0, 0.0, 0.0, 0.0),
+        # (closed, open) on left_finger. Jaw gap 42 mm closed to 114 mm open, so a 66 mm can has
+        # 24 mm of clearance per side against the reBot's 17 and the Robotiq's 12.3.
+        "grip_range": (0.021, 0.057),
+        # A position servo squeezes with kp * (commanded - actual). Gripping the 66 mm can leaves
+        # the finger at q=0.0470 against a commanded 0.0210, so the stock kp=300 gives only
+        # 300 * 0.026 = 7.6 N and the 20 N forcerange is never reached. Raising grip_force alone
+        # changes nothing, measured: 20, 40, 80 and 150 N all give an identical 7.60 N squeeze.
+        # kp is the term that matters; grip_force is raised alongside so it stops clipping.
+        "grip_force": 60.0,   # N, Dynamixel XM430-class gripper
+        "grip_kp": 1500.0,
+        # The can slid out of the jaw during the carry. Pad friction is the other half of the
+        # holding capacity and the vendor pads ship at the MuJoCo default. (sliding, torsional):
+        # torsional is the one that matters here, because the can is held near its rim and rotates
+        # out rather than sliding down. Measured over the policy's carry path, slip 80.1 -> 49.3 mm.
+        # kp beyond 1500 and friction beyond this buy nothing (48.8 mm at kp 3000, 49.9 at mu 8).
+        "pad_friction": (4.0, 0.05),
+        "grip_ctrl_n": 1,
+        # The reBot's ARRANGEMENT reproduced, not its numbers. Measured on the reBot, its camera
+        # sits dead on the approach axis (zero perpendicular offset from the tool point), 11.4 mm
+        # behind the rearmost finger edge, looking straight along +x through the open jaw.
+        # Copying its raw -0.1009 does not work, because the two robots put the eef body at
+        # opposite ends of the gripper:
+        #     reBot   gripper_end   bbox x -148.0 .. + 10.9   body at the FAR end
+        #     vx300s  gripper_link  bbox x    0.0 .. +136.5   body at the NEAR end
+        # so -0.1009 landed 167 mm behind the vx300s's fingers, inside the forearm, and filled 46%
+        # of the frame with arm. This arm's fingers span x 66.5..136.4, so the same 11.4 mm standoff
+        # puts the camera at x = 55 mm.
+        # The gripper still fills 10.3% of the frame against the reBot's 3.2%: this jaw is simply
+        # chunkier. x = 0.070 gets to 1.8% if matching the training APPEARANCE matters more than
+        # matching the geometry, at the cost of sitting only 30 mm from the tool point.
+        # Placed against the GRASP frame, which is the one that matters. Tuning it against the
+        # HOME frame was the mistake: at home this arm points nearly level and the object is on a
+        # table below, so "too much sky" looked like the problem and a 25 deg down-tilt looked like
+        # the fix. It is not. Driving both robots to the SAME commanded grasp pose from episode 0
+        # and measuring how much of the wrist frame the can fills:
+        #     training video (reBot)        78.4%
+        #     reBot in sim                  65.7%   <- the reference
+        #     x=55 tilted 25 deg             0.0%   the can is not in frame at all
+        #     x=20 on-axis                  69.9%   jaw wedges 9.7%
+        #     x=25 on-axis                  77.1%   jaw wedges 7.3%  <- chosen
+        # against training's can 78.4% / wedges 8.5%, so both match to under 1.5 points.
+        # Moving the camera BACK is bounded: below x=20 the gripper's base casting fills the entire
+        # frame (can 0.0%, a grey wall) and the cliff is sharp, 15 mm to 20 mm. With the can absent
+        # at the grasp the policy has nothing to trigger a close on, and it held the jaw open at
+        # 0.98 through the whole rollout. The sky at home is not a problem: the reBot's own training
+        # frames at t=0 are sky, floor and table edge too.
+        # 20 was TRIED and it is past the cliff, not at its edge: the pick never happened, the jaw
+        # stayed at 0.97 to 1.00 for a whole 1163-tick rollout, which is the exact signature this
+        # comment predicts. 25 is the working value; do not go below it without re-testing the pick.
+        # The cost of staying at 25 is the RECEIVING view at the handover. The receiving camera has
+        # to see the object the giving hand holds, and the standoff sets that: the object sits only
+        # ~30 mm from the lens, so a short standoff swings it outside the 35 deg half-FOV. Measured
+        # over episode 0's handover frames as the angle from the camera axis to the giving tool
+        # point (needs no can placement, so it does not depend on the per-episode can pose):
+        #     x=0.025, standoff  -75 mm : azimuth 34.7, elevation 37.5 -> in frame   0% of frames
+        #     x=0.020, standoff  -80 mm : azimuth 29.2, elevation 31.7 -> in frame  92%, BLIND
+        #     x=0.010, standoff  -90 mm : azimuth 21.9, elevation 24.0 -> in frame 100%, BLIND
+        # The reBot sits at -90 mm and reads 21.6 / 22.7. It can, because its tool point is out at
+        # the finger tips; the vx300s pinch site is mid-finger, so the same standoff buries the lens
+        # in the gripper casting. The two constraints are irreconcilable by standoff alone.
+        # This is why the handover fails. Live dumps at the handover, can as a fraction of frame:
+        # reBot 9.0% (closes, succeeds), vx300s 0.0% (never closes). Fixing it needs something
+        # other than standoff: a lens offset off-axis, a tilt, or a wider fovy, each of which has to
+        # be re-tested against the pick because the pick is what the deep standoff breaks.
+        # On-axis, no tilt, x_cam along the jaw axis, exactly the reBot's orientation.
+        # Per side. Both keep the +20 mm z raise, which is the change that made the object
+        # visible at all; only the standoff differs.
+        #   left  = the GIVING camera, judged at the grasp with the can at its true launch pose and
+        #           the tool at the operator's own grasp height (z=0.841). Rendered can coverage:
+        #             (0.025, 0, 0.02) 50.3%   (0.025, 0, 0) 29.7%
+        #             (0.050, 0, 0.02)  2.5%   (0.050, 0, 0)  0.0%     training reference 78.3%
+        #           x=0.050 is only 50 mm of standoff, which puts the can too close to the lens and
+        #           pushes it out of frame at grasp height; it looks like a thin red band at the
+        #           bottom edge. That is a grasp-blind camera, not a tight one.
+        #   right = the RECEIVING camera, judged from a live handover dump, where x=0.050 measured
+        #           10.5% can coverage against 0.0% before and the reBot's 9.0% when it succeeds.
+        # Do not collapse these back to one value: 0.025 is blind at the handover and 0.050 is
+        # blind at the grasp, and the task needs both.
+        "wrist_cam_pos": {"left": (0.0250, 0.0, 0.0200), "right": (0.0500, 0.0, 0.0200)},
+        "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
+        # Swept on THREE gates: replay residual on episode 0's recorded poses, whether an arm base
+        # ends up inside the task furniture, and ORIENTATION residual on the giving arm during the
+        # carry and handover. The third gate is the one that decides it. Position residual barely
+        # separates the candidates while rotation separates them by 23x, and the handover depends on
+        # holding the object at the recorded ORIENTATION, not just the recorded point:
+        #     base_x  0.00, sep 1.00 :  0.50 mm,  0.16 deg mean / 0.28 max   <- chosen
+        #     base_x  0.00, sep 0.90 :  4.42 mm,  3.68 deg mean / 6.52 max
+        #     base_x  0.00, sep 1.10 :  0.49 mm,  0.05 deg mean / 0.26 max
+        # base_x=+0.05 reaches 0.27 deg but buries the right base 12 mm inside the tray.
+        # Everything at base_x <= -0.05 exceeds 2 deg, and -0.10 exceeds 30 deg.
+        # Held at the reBot's HANDOVER_SEP deliberately, NOT at the kinematic optimum. 1.00 scores
+        # far better on the giving arm's orientation (0.03 deg against 3.68) and was tried, but it
+        # moves both mounts 50 mm outward relative to the can and tray, which stay at HANDOVER_SEP
+        # because they are shared task furniture. The rollout at 1.00 was worse, not better. That
+        # test also moved the wrist camera at the same time so it cannot attribute the regression
+        # to one change; what is certain is that 0.90 is the configuration with a measured
+        # 3/3 pick, grasp and carry, and 1.00 does not have one.
+        # If the giving arm's 3.68 deg is worth revisiting, change base_sep ALONE and keep the
+        # camera at 0.025, so the next rollout attributes cleanly.
+        "base_x": 0.00,
+        "base_sep": HANDOVER_SEP,
+        # Solved onto the training set's mean episode-start pose, position AND orientation, by
+        # scripts/solve_home.py. `observation.state` is the policy's input, so the pose the arm
+        # boots into has to be one the policy saw at t=0.
+        "home": {
+            "left": (-0.1286, -0.4261, 1.0695, 2.6865, 0.5904, 0.1658),
+            "right": (-0.2867, -0.1800, 0.9628, 1.9393, 1.0683, 0.4709),
+        },
+        "urdf": PKG.parent / "robots" / "_vendor" / "vx300s_flat.urdf",
+        "urdf_root": "base_link",
+        "urdf_eef_frame": "{side}_gripper_link",
         "urdf_skip_links": ("world",),
-        "mesh_src": ROOT / "robots" / "franka_emika_panda" / "assets",
-        "mesh_glob": ("*.obj", "*.stl"),
-        # The URDF references converter output (`converted_link0_0_e6ebedff.obj`) that was never
-        # committed. Menagerie ships the same meshes as `link0_0.obj`, so remap rather than
-        # regenerate: converted_<part>_<idx>_<hex>.obj -> <part>_<idx>.obj
-        "mesh_remap": r"converted_(.+)_([0-9a-f]{8})\.obj",
-        "ros2_control_joints": tuple(f"joint{i}" for i in range(1, 8)) + ("finger_joint1",),
-        "arm_ctrl_joints": tuple(f"joint{i}" for i in range(1, 8)),
-        "grip_ctrl_joints": ("finger_joint1",),
+        # Interbotix's meshes, not menagerie's. gen_urdf keys on the mesh BASENAME, and the two
+        # trees disagree: Interbotix calls it base.stl where menagerie calls it vx300s_1_base.stl.
+        # The URDF is Interbotix's, so its names have to resolve.
+        "mesh_src": PKG.parent / "robots" / "_vendor" / "interbotix" / "interbotix_ros_xsarms"
+                    / "interbotix_xsarm_descriptions" / "meshes" / "vx300s_meshes",
+        # The .png travels with the STLs: the URDF references interbotix_black.png as a mesh
+        # filename, so gen_urdf rewrites it like one and it must be present.
+        "mesh_glob": ("*.stl", "*.STL", "*.png"),
+        "mesh_remap": None,
+    },
+    # ---- Unitree G1, the destination embodiment -----------------------------------------
+    # INFRASTRUCTURE ONLY at this point: MJCF, URDF, ros2_control and a launch file. The pieces a
+    # policy would need are deliberately not done yet, and each is flagged below.
+    #
+    # Structurally unlike the others: one floating-base humanoid carrying both arms, not two arms
+    # bolted to a table, hence `single_body`. Its joints already carry left_/right_, so the
+    # per-side names below are the suffixes and L.prefixed() reproduces the model's own spelling.
+    # URDF and MJCF come from one upstream tree (unitreerobotics/unitree_ros), so they agree:
+    # left_wrist_yaw_link matches to 0.0001 deg in rotation over 300 configurations, with a
+    # constant 793 mm position offset that is just the MJCF's floating base sitting at standing
+    # pelvis height against the URDF's root at the origin.
+    "g1": {
+        "single_body": True,
+        # Sid's own copy, not the _vendor clone. It is menagerie's G1 with hands and already has
+        # what the raw unitreerobotics model lacks: 43/43 POSITION servos rather than bare torque
+        # motors, a `stand` keyframe, and no ground plane of its own. Its URDF sits beside it and is
+        # MJCF-derived (the *_jointbody links are the converter's signature), so the two agree by
+        # construction instead of by luck.
+        "mjcf": PKG.parent / "robots" / "unitree_g1_mjcf" / "g1_with_hands.xml",
+        # Pelvis pose. From scripts/reach_gate.py, which swept it and verified 16.3 L of table
+        # volume shared with both reBots at a 0.20 m standoff. yaw 180 turns the G1 to face the
+        # table, which also mirrors the arms: its LEFT arm covers world -y, so the reBot's left arm
+        # maps to the G1's right. See scripts/plan_can_poses.py.
+        "base_pos": (0.75, 0.0, 0.79),
+        "base_quat": (0.0, 0.0, 0.0, 1.0),
+        "arm_joints": ('shoulder_pitch_joint', 'shoulder_roll_joint', 'shoulder_yaw_joint', 'elbow_joint', 'wrist_roll_joint', 'wrist_pitch_joint', 'wrist_yaw_joint'),
+        "gripper_joints": ('hand_thumb_0_joint', 'hand_thumb_1_joint', 'hand_thumb_2_joint', 'hand_middle_0_joint', 'hand_middle_1_joint', 'hand_index_0_joint', 'hand_index_1_joint'),
+        "arm_ctrl_joints": ('shoulder_pitch_joint', 'shoulder_roll_joint', 'shoulder_yaw_joint', 'elbow_joint', 'wrist_roll_joint', 'wrist_pitch_joint', 'wrist_yaw_joint'),
+        "grip_ctrl_joints": ('hand_thumb_0_joint', 'hand_thumb_1_joint', 'hand_thumb_2_joint', 'hand_middle_0_joint', 'hand_middle_1_joint', 'hand_index_0_joint', 'hand_index_1_joint'),
+        "ros2_control_joints": ('shoulder_pitch_joint', 'shoulder_roll_joint', 'shoulder_yaw_joint', 'elbow_joint', 'wrist_roll_joint', 'wrist_pitch_joint', 'wrist_yaw_joint') + ('hand_thumb_0_joint', 'hand_thumb_1_joint', 'hand_thumb_2_joint', 'hand_middle_0_joint', 'hand_middle_1_joint', 'hand_index_0_joint', 'hand_index_1_joint'),
+        "actuators_match_joints": True,
+        "eef_body": "wrist_yaw_link",
+        # TODO eef_offset and eef_quat are NOT measured. The Dex3 is a three-finger hand, so its
+        # grasp centre is the centroid of the pads rather than a jaw midpoint, and scripts/
+        # measure_tcp.py assumes two opposing fingers. reach_gate.py has palm offsets derived in
+        # the previous project (thumb pad and index+middle centroid at ~7 cm aperture) that are the
+        # right starting point. Zero here so nothing silently pretends to be measured.
+        "eef_offset": (0.0000, 0.0000, 0.0000),
+        "eef_quat": (1.0, 0.0, 0.0, 0.0),
+        # TODO the 20-dim action's grip channel is ONE scalar and the Dex3 has seven actuated
+        # joints with seven different ranges, so it needs a closing synergy, not a linear map.
+        # grip_range is a placeholder so the generators run; do not read a grasp from it.
+        "grip_range": (0.0, 1.0),
+        # All zeros is the extended, open hand: every joint's open end is 0 (thumb_2 runs
+        # [0, 1.745], middle_0 and index_0 run [-1.571, 0]).
+        "grip_open": (0.0,) * 7,
+        "grip_force": 10.0,
+        "grip_ctrl_n": 7,
+        # 31 of its 43 actuators are proper position servos; the 12 leg joints are <motor> torque
+        # actuators for RL locomotion and come out of the shared default class malformed. See the
+        # repair in gen_scene.py.
+        "repair_actuators": True,
+        # Frozen: the pelvis is welded and a table task uses neither the legs nor the waist. This
+        # deletes 12 leg joints and 3 waist joints with their actuators, which removes the 67 mrad
+        # hip sag and 15 DOF. Drop this list to get a fully articulated lower body back.
+        "freeze_joints": ("hip", "knee", "ankle", "waist"),
+        # The legs, waist and neck are not part of the task and are not in arm_joints, so they take
+        # their values from the model's own `stand` keyframe rather than defaulting to zero. Zeros
+        # means straight legs, which with a welded pelvis left the knee drifting 2.7 rad.
+        "base_keyframe": "stand",
+        # TODO wrist camera unplaced. The Dex3 has no gripper body to mount on in the way the
+        # parallel jaws do; this is the reBot's pose in the shared tool frame and is untested.
+        "wrist_cam_pos": (-0.1009, 0.0, 0.0050),
+        "wrist_cam_xyaxes": (0, 1, 0, 0, 0, -1),
+        # Unused for a single body (the pelvis pose is base_pos), but the registry helpers read
+        # them, so they mirror the stance rather than being left absent.
+        "base_x": 0.75,
+        "base_sep": 0.0,
+        # TODO not solved onto the training start pose. Zeros is the model's own rest pose: arms
+        # hanging. scripts/solve_home.py is what does this once eef_offset is measured.
+        "home": {"left": (0.0,) * 7, "right": (0.0,) * 7},
+        "urdf": PKG.parent / "robots" / "unitree_g1_mjcf" / "g1_with_hands.urdf",
+        "urdf_root": "pelvis",
+        "urdf_eef_frame": "{side}_wrist_yaw_link",
+        "urdf_skip_links": (),
+        "mesh_src": PKG.parent / "robots" / "unitree_g1_mjcf" / "assets",
+        "mesh_glob": ("*.STL", "*.stl"),
+        # converted_<link>_<rrggbbaa>.obj -> <link>.STL. The hex is a colour, not an index.
+        "mesh_remap": r"converted_(.+)_[0-9a-f]{8}\.obj",
+        "mesh_remap_to": "{part}.STL",
+        "tcp_tol_mm": 1e9,     # TODO drop once eef_offset is measured
     },
 }
 

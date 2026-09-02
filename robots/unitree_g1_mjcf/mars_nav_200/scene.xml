@@ -1,0 +1,33 @@
+<mujoco model="mars_nav_200_scene">
+  <!-- HANUMAN Mars deployment scene — load this in the MuJoCo viewer or point
+       mujoco_ros2_control's `mujoco_model` param at it.
+       Uncomment the robot include below to spawn the G1. -->
+  <compiler angle="radian" autolimits="true"/>
+  <option gravity="0 0 -9.81" timestep="0.002">
+    <flag warmstart="enable"/>
+  </option>
+  <statistic center="0 0 15.72" extent="200.0"/>
+  <visual>
+    <headlight diffuse="0.8 0.6 0.4" ambient="0.3 0.2 0.15" specular="0.1 0.1 0.1"/>
+    <rgba haze="0.6 0.35 0.15 1"/>
+    <map znear="0.01" zfar="500"/>
+    <quality shadowsize="4096"/>
+    <global azimuth="140" elevation="-20" offwidth="1280" offheight="720"/>
+  </visual>
+  <asset>
+    <texture name="sky" type="skybox" builtin="gradient"
+             rgb1="0.75 0.55 0.35" rgb2="0.35 0.15 0.05" width="512" height="3072"/>
+  </asset>
+  <worldbody>
+    <light name="sun" pos="100 100 50" dir="-0.3 -0.3 -1"
+           diffuse="1.2 0.9 0.6" specular="0.3 0.2 0.1" castshadow="true"/>
+    <light name="fill" pos="0 0 30" dir="0 0 -1"
+           diffuse="0.3 0.2 0.15" specular="0 0 0" castshadow="false"/>
+    <site name="spawn" pos="0 0 32.45" size="0.1" rgba="0 1 0 0.5"/>
+  </worldbody>
+
+  <include file="model.xml"/>
+  <!-- Spawn the G1 here once wired through mujoco_ros2_control:
+  <include file="g1_mars.xml"/>
+  -->
+</mujoco>

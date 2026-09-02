@@ -41,29 +41,73 @@ def pinch_point(m, d, r, side: str) -> tuple:
 
     joints = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_JOINT, L.prefixed(side, j))
               for j in r["gripper_joints"]]
-    for j in joints:                       # fully closed: the pads touch
-        d.qpos[m.jnt_qposadr[j]] = m.jnt_range[j][0]
+    # Close the jaw by COMMANDING it and stepping, not by writing qpos. Writing qpos assumes every
+    # gripper joint takes the same value, which holds for the reBot's two same-signed slides and
+    # fails for a mirrored pair: the vx300s runs left_finger [0.021, 0.057] against right_finger
+    # [-0.057, -0.021], so writing 0.021 to both drives one finger out of range and puts the
+    # measured pinch point 28.7 mm off, with a tell-tale asymmetric y. Commanding the actuator lets
+    # the <equality> place the follower correctly, and it works the same way for a four-bar linkage
+    # as for a slide.
+    for a_ in range(m.nu):
+        if m.actuator_trntype[a_] != mujoco.mjtTrn.mjTRN_JOINT:
+            continue
+        if m.actuator_trnid[a_, 0] in joints:
+            d.ctrl[a_] = r["grip_range"][0]
+    for _ in range(int(1.5 / m.opt.timestep)):
+        mujoco.mj_step(m, d)
     mujoco.mj_forward(m, d)
 
+    # Which bodies carry the gripping surfaces. On a slide jaw that is the body the gripper joint
+    # sits on, but a four-bar gripper like the 2F-85 drives its pads through two more links, so the
+    # joint's own body is a knuckle 89 mm short of the pads. `pad_bodies` names them when they
+    # differ.
+    if r.get("pad_bodies"):
+        bodies = [mujoco.mj_name2id(m, mujoco.mjtObj.mjOBJ_BODY, L.prefixed(side, b))
+                  for b in r["pad_bodies"]]
+        assert all(b >= 0 for b in bodies), f"pad_bodies not in the model: {r['pad_bodies']}"
+    else:
+        bodies = [m.jnt_bodyid[j] for j in joints]
+
     clouds = []
-    for j in joints:
-        b = m.jnt_bodyid[j]
+    for b in bodies:
         pts = []
         for g in range(m.body_geomadr[b], m.body_geomadr[b] + m.body_geomnum[b]):
             if not (m.geom_contype[g] or m.geom_conaffinity[g]):
                 continue
-            if m.geom_type[g] != mujoco.mjtGeom.mjGEOM_MESH:
-                continue
-            mid = m.geom_dataid[g]
-            V = m.mesh_vert[m.mesh_vertadr[mid]:
-                            m.mesh_vertadr[mid] + m.mesh_vertnum[mid]].reshape(-1, 3)
-            pts.append((d.geom_xmat[g].reshape(3, 3) @ V.T).T + d.geom_xpos[g])
-        assert pts, f"{side} finger has no collision mesh"
+            X, P = d.geom_xmat[g].reshape(3, 3), d.geom_xpos[g]
+            if m.geom_type[g] == mujoco.mjtGeom.mjGEOM_MESH:
+                mid = m.geom_dataid[g]
+                V = m.mesh_vert[m.mesh_vertadr[mid]:
+                                m.mesh_vertadr[mid] + m.mesh_vertnum[mid]].reshape(-1, 3)
+            else:
+                # A primitive pad has no vertex list. Use its six FACE CENTRES, not its corners:
+                # the closest pair between two facing boxes is then the two facing face centres,
+                # so their midpoint is the grasp centre exactly. Corners put the closest pair on
+                # an edge instead, which threw the measured offset 11 mm off in y.
+                h = m.geom_size[g]
+                V = np.array([[h[0], 0, 0], [-h[0], 0, 0],
+                              [0, h[1], 0], [0, -h[1], 0],
+                              [0, 0, h[2]], [0, 0, -h[2]]])
+            pts.append((X @ V.T).T + P)
+        assert pts, f"{side} gripper body {b} has no collision geometry"
         clouds.append(np.vstack(pts))
 
+    # Average over every NEAR-minimal pair, not just argmin. On two flat parallel pads the closest
+    # pair is degenerate: the vx300s's fingers face each other across 15 mm over a surface spanning
+    # 70 mm in x and 61 mm in z, so thousands of pairs tie and argmin returns an arbitrary corner.
+    # That made the measured offset jump between (0.1065, 0, 0.000) and (0.0815, 0, -0.020)
+    # depending only on iteration order. The centroid of the tied pairs is the pad centre, which is
+    # what the tool point should be, and it degrades gracefully to argmin when the closest pair is
+    # genuinely unique, as on the reBot's asymmetric fingers.
     D = cdist(clouds[0], clouds[1])
-    i, k = np.unravel_index(np.argmin(D), D.shape)
-    return (clouds[0][i] + clouds[1][k]) / 2.0, float(D.min())
+    dmin = float(D.min())
+    # 0.01 mm band. Tight on purpose: on parallel pads every facing pair sits at exactly dmin, so
+    # a tight band still captures the whole surface, while on the reBot's asymmetric fingers it
+    # captures only the genuinely closest pair and reproduces the value the recorded dataset was
+    # measured against. That value must not move: it is baked into all 82 episodes.
+    ii, kk = np.where(D <= dmin + 1e-5)
+    mids = (clouds[0][ii] + clouds[1][kk]) / 2.0
+    return mids.mean(axis=0), dmin
 
 
 def measure(key: str, side: str = "left") -> tuple:

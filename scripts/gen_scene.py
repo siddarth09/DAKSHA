@@ -1,9 +1,9 @@
 """Build a two-arm MJCF for any registered embodiment, with identical table and cameras.
 
     MUJOCO_GL=egl python scripts/gen_scene.py rebot
-    MUJOCO_GL=egl python scripts/gen_scene.py ur5e
+    MUJOCO_GL=egl python scripts/gen_scene.py panda
 
-One generator for every robot. The cross-embodiment chain is reBot -> UR5e -> G1, and the study
+One generator for every robot. The cross-embodiment chain is reBot -> Panda -> G1, and the study
 only means anything if the task is identical across embodiments: same table, same object
 position, same camera poses, same look-at point. A per-robot script would let those drift.
 Everything shared comes from `zero_layout`; only what genuinely differs (joint names, reach,
@@ -60,6 +60,40 @@ def rest_offset(path) -> float:
             lo = min(lo, float(d.geom_xpos[g][2] - m.geom_size[g][2]))
     assert np.isfinite(lo), f"{path} has no collision geometry to rest on"
     return top_z - lo
+
+
+def attach_keeping_names(parent, child, prefix, frame):
+    """Attach `child` under `frame`, then strip `prefix` back off its bodies and joints.
+
+    A bare attach would keep the child's names, but MuJoCo gives every spec an implicit top-level
+    default class called `main`, and models carry assets with generic names (the G1 ships a
+    `groundplane` texture), so two un-prefixed specs collide on one or the other. Prefixing avoids
+    that; stripping the prefix off bodies and joints afterwards leaves the exact names the upstream
+    ROS description uses, so mujoco_ros2_control binds the URDF and the MJCF without a translation
+    table. Assets and default classes keep their prefix, which is what the collision needed.
+
+    References are stored as plain strings and do NOT follow a rename, so every one is rewritten by
+    hand. Missing the actuator target is silent: the actuator stops resolving and only surfaces much
+    later as "no gripper actuator matched".
+    """
+    parent.attach(child, prefix=prefix, frame=frame)
+    if not prefix:
+        return
+    taken = {b.name for b in parent.bodies} | {j.name for j in parent.joints}
+    ren = {el.name: el.name[len(prefix):]
+           for el in list(parent.bodies) + list(parent.joints)
+           if el.name.startswith(prefix) and el.name[len(prefix):] not in taken}
+    for el in list(parent.bodies) + list(parent.joints):
+        if el.name in ren:
+            el.name = ren[el.name]
+    for act in parent.actuators:
+        act.target = ren.get(act.target, act.target)
+    for eq in parent.equalities:
+        eq.name1 = ren.get(eq.name1, eq.name1)
+        eq.name2 = ren.get(eq.name2, eq.name2)
+    for ex in parent.excludes:
+        ex.bodyname1 = ren.get(ex.bodyname1, ex.bodyname1)
+        ex.bodyname2 = ren.get(ex.bodyname2, ex.bodyname2)
 
 
 def add_task(spec: mujoco.MjSpec) -> None:
@@ -271,7 +305,19 @@ def build(key: str) -> mujoco.MjSpec:
     spec.option.enableflags |= mujoco.mjtEnableBit.mjENBL_MULTICCD
     # Absolute meshdir: the MJCF is written to zero_description/mjcf/ but the meshes live under
     # robots/<robot>/assets, and a relative path breaks the moment the cwd changes.
-    spec.meshdir = str(r["mjcf"].parent / "assets")
+    # Absolute asset paths, taken from what the ROBOT'S OWN model declares rather than assumed.
+    # A compiled model has one global meshdir, the MJCF is written to zero_description/mjcf/, and a
+    # relative path breaks the moment the cwd changes. The subdirectory is not always "assets":
+    # the reBot and vx300s say assets/, the G1 says meshes/. Note this is NOT the registry's
+    # `mesh_src`, which is where the URDF's meshes come from and legitimately differs (the vx300s
+    # URDF is Interbotix's while its MJCF is menagerie's).
+    #
+    # texturedir as well as meshdir. They are separate compiler paths, and a model that ships a
+    # texture (the vx300s carries interbotix_black.png) fails with "Error opening file" if only
+    # meshdir is set, because the scene's own texturedir is empty and resolves against the cwd.
+    child = mujoco.MjSpec.from_file(str(r["mjcf"]))
+    spec.meshdir = str((r["mjcf"].parent / (child.meshdir or "assets")).resolve())
+    spec.texturedir = str((r["mjcf"].parent / (child.texturedir or child.meshdir or "assets")).resolve())
     spec.visual.global_.offwidth, spec.visual.global_.offheight = 1280, 720
 
     spec.add_texture(name="skybox", type=mujoco.mjtTexture.mjTEXTURE_SKYBOX,
@@ -326,20 +372,30 @@ def build(key: str) -> mujoco.MjSpec:
         ).add_geom(name=f"leg{i}_g", type=mujoco.mjtGeom.mjGEOM_CYLINDER,
                    size=[LEG_R, lz], material="leg_mat")
 
-    for side in L.SIDES:
+    # A humanoid is ONE body carrying both arms, not two arms bolted to a table, so it is attached
+    # once and keeps its own names: the G1 already calls its joints left_shoulder_pitch_joint and
+    # right_shoulder_pitch_joint, so a per-side prefix would produce left_left_shoulder_pitch_joint
+    # and break the by-name binding with its URDF. Everything downstream (eef sites, wrist cameras,
+    # fingertip sensors) is written per side against those existing names and needs no change.
+    sides = ("single",) if r.get("single_body") else L.SIDES
+    for side in sides:
         # Reload per side: reusing one MjSpec for two attaches fails with "incompatible id in exclude
         # array", because these models ship <contact><exclude> pairs and attaching rewrites the child's
         # element ids.
         arm = mujoco.MjSpec.from_file(str(r["mjcf"]))
 
-        # Shared gripper. A robot declaring `graft_gripper` has its own end effector cut off and the
-        # reBot's put in its place. This is what makes cross-embodiment transfer possible without
-        # re-recording: the wrist camera is mounted on the gripper, so an identical gripper gives a
-        # geometrically identical wrist view (finger positions agree to 0.1 mm in the camera frame). On a
-        # stock Panda the reBot policy reaches the can zero-shot (8.0 mm) but never commits to a grasp,
-        # and the grasp decision is exactly what depends on that close-up view.
+        # Grafted gripper. A robot declaring `graft_gripper` has its own end effector cut off at
+        # `cut_body` and the shared one attached at `host_body` in its place. The Panda wears a
+        # Robotiq 2F-85 this way, which is what a real Panda cell is usually fitted with, and it
+        # keeps the target's gripper independent of whatever the source arm happens to carry.
         #
-        # The pose is derived, see scripts/make_shared_gripper.py, not hand-written.
+        # Attached WITH a prefix and then renamed back. A bare attach would keep the gripper's
+        # joint names, but MuJoCo gives every spec an implicit top-level default class called
+        # `main`, so two un-prefixed specs collide with "repeated default class name" as soon as
+        # the per-side prefix is applied. Prefixing avoids that; stripping the prefix off the
+        # bodies and joints afterwards leaves the exact names the official ROS 2 description uses,
+        # so mujoco_ros2_control binds the URDF and the MJCF without a translation table. Assets
+        # and default classes keep their prefix, which is what the collision needed.
         if r.get("graft_gripper"):
             g = r["graft_gripper"]
             # The arm's own keyframes describe the qpos layout it had before the graft, and one of them is
@@ -349,12 +405,9 @@ def build(key: str) -> mujoco.MjSpec:
             if g.get("cut_body"):
                 arm.delete(arm.body(g["cut_body"]))
             grip = mujoco.MjSpec.from_file(str(g["mjcf"]))
-            # Prefixed, not bare: MuJoCo gives every spec an implicit top-level default class called `main`,
-            # so a bare attach yields two of them and the compile fails with "repeated default class name"
-            # once the per-side prefix is applied.
-            arm.attach(grip, prefix="rg_",
-                       frame=arm.body(g["host_body"]).add_frame(pos=list(g["pos"]),
-                                                                quat=list(g["quat"])))
+            attach_keeping_names(
+                arm, grip, g.get("prefix", "rq_"),
+                arm.body(g["host_body"]).add_frame(pos=list(g["pos"]), quat=list(g["quat"])))
 
         # Drop the arm's own lights. Both source models ship an overhead spot intended for viewing that
         # arm alone. Attaching two arms brings two more lights on top of the two tuned here, and their
@@ -364,6 +417,22 @@ def build(key: str) -> mujoco.MjSpec:
         for light in list(arm.lights):
             arm.delete(light)
 
+        # Drop the model's own keyframes. A keyframe is a FLAT qpos vector sized for the model that
+        # declared it, so once the arm is attached into a scene with a table and free-jointed
+        # objects the sizes no longer match and the compile fails with "Keyframe 'stand' has
+        # invalid qpos size, got 50, should be 43". This generator writes its own `home` below, and
+        # `base_keyframe` reads the source keyframe from a fresh load of the file, so nothing here
+        # is needed.
+        for k in list(arm.keys):
+            arm.delete(k)
+
+        # Drop the model's own worldbody geometry too. The G1 ships a ground plane in its robot
+        # file, and attaching the robot at its pelvis pose carries that plane up to z=0.79, so the
+        # legs then "penetrate" a floor floating at hip height by up to 481 mm and the solver blows
+        # up with "Nan, Inf or huge value in QACC". The floor belongs to the scene, like the lights.
+        for geom in list(arm.worldbody.geoms):
+            arm.delete(geom)
+
         # Marker sites must not render into the camera images. panda_ros2.xml carries a `panda_ee` site
         # in group 0 (visible by default, solid red), which put a red ball in the middle of both wrist
         # views and straight into the recorded observations. Group 4 is hidden by default; a site's group
@@ -371,8 +440,39 @@ def build(key: str) -> mujoco.MjSpec:
         for site in arm.sites:
             site.group = 4
 
-        frame = spec.worldbody.add_frame(pos=list(mounts[side]), quat=[1, 0, 0, 0])
-        spec.attach(arm, prefix=f"{side}_", frame=frame)
+        if r.get("single_body"):
+            # A floating base would let the whole robot fall over the moment the sim starts, and the
+            # study is about the arms, not about balance. The free joint is dropped so the pelvis is
+            # welded at the stance reach_gate.py verified, and yaw 180 turns it to face the table.
+            for j in list(arm.joints):
+                if j.type == mujoco.mjtJoint.mjJNT_FREE:
+                    arm.delete(j)
+            # Freeze whatever the task does not use. `freeze_joints` lists name substrings; the
+            # matching joints and their actuators are deleted, so those links become rigid parts of
+            # the body. For a table task with a welded pelvis the legs and waist do nothing but
+            # sag: servo-held they still drifted 67 mrad at the hips over 10 s, and every one of
+            # them is a DOF the solver spends time on. Deleting is honest here in a way that
+            # zeroing a gain is not, since the joint genuinely plays no part.
+            for pat in r.get("freeze_joints", ()):
+                for j in list(arm.joints):
+                    if pat in j.name:
+                        for act in list(arm.actuators):
+                            if act.target == j.name:
+                                arm.delete(act)
+                        arm.delete(j)
+
+            # Zero the root body's own offset. The G1's pelvis carries pos=(0, 0, 0.793), its
+            # standing height, which the free joint would normally override. Attaching at base_pos
+            # ADDS to it, putting the whole robot 793 mm too high, and the URDF root has no such
+            # offset so the two descriptions disagree by exactly that. `base_pos` is defined as the
+            # pelvis pose in the world, so the intrinsic offset has to go.
+            for b_ in arm.worldbody.bodies:
+                b_.pos = [0.0, 0.0, 0.0]
+            frame = spec.worldbody.add_frame(pos=list(r["base_pos"]), quat=list(r["base_quat"]))
+            attach_keeping_names(spec, arm, "g1_", frame)
+        else:
+            frame = spec.worldbody.add_frame(pos=list(mounts[side]), quat=[1, 0, 0, 0])
+            spec.attach(arm, prefix=f"{side}_", frame=frame)
 
     # Gravity compensation, and it must be set here rather than on the compiled model. MuJoCo counts
     # gravcomp bodies at compile time (`ngravcomp`) and skips the whole force path when that count is
@@ -385,24 +485,139 @@ def build(key: str) -> mujoco.MjSpec:
     # not the pose the arm reaches, which is label noise in every demo and differs per embodiment.
     # Compensating the arm bodies removes it. The manipulated object is not compensated, so grasping
     # still has to hold real weight.
-    for side in L.SIDES:
+    # For a single-body embodiment the robot is not per-side, so match on the whole subtree instead
+    # of the left_/right_ prefix. Filtering by prefix left the G1's pelvis, waist and torso
+    # uncompensated, which is most of its mass.
+    # For a single-body embodiment the robot is not per-side, so match every robot body instead of
+    # the left_/right_ prefix. Filtering by prefix left the G1's pelvis, waist and torso
+    # uncompensated, which is most of its mass, and f"{side}_" with an empty side is just "_",
+    # which matches nothing at all.
+    task_bodies = {"table", "leg0", "leg1", "leg2", "leg3", "plate_root", "plate_object",
+                   "obj_root", "obj_object"}
+    if r.get("single_body"):
         for body in spec.bodies:
-            if body.name.startswith(f"{side}_"):
+            if body.name not in task_bodies and not body.name.startswith("obj_"):
                 body.gravcomp = 1.0
+    else:
+        for side in L.SIDES:
+            for body in spec.bodies:
+                if body.name.startswith(f"{side}_"):
+                    body.gravcomp = 1.0
+
+    # Repair inconsistent position servos. A MuJoCo affine actuator produces
+    #     force = gainprm[0]*ctrl + biasprm[1]*qpos + biasprm[2]*qvel
+    # so a position servo needs gainprm[0] == -biasprm[1] (both the kp) and biasprm[2] <= 0 (damping
+    # opposes motion). The G1 model mixes two control styles on purpose: its arms, waist and hands
+    # are position servos, while its 12 LEG joints are <motor> torque actuators for RL locomotion.
+    # Because those motors sit inside the same default class they inherit the servos' biasprm and
+    # come out as gain 1 against a qpos term of -500, with biasprm[2] = +1, i.e. POSITIVE velocity
+    # feedback that pumps energy in. Under a welded pelvis that collapsed the knee by 2.3 rad in 5 s.
+    #
+    # This scene welds the pelvis and the legs play no part in a table task, so they only have to
+    # hold still. kd follows the ratio the model's own healthy servos use (40.5 at kp 500).
+    #
+    # Diagnosed on the COMPILED source, then applied to the spec by name. Reading gainprm off an
+    # MjSpec actuator gives MuJoCo's raw defaults (gain 1, bias 0) whenever the value comes from a
+    # <default> class, not the resolved value, so checking the spec flagged all 43 actuators and
+    # would have set every gain to 1.
+    if r.get("repair_actuators"):
+        src = mujoco.MjModel.from_xml_path(str(r["mjcf"]))
+        broken: dict[str, float] = {}
+        for i in range(src.nu):
+            if src.actuator_trntype[i] != mujoco.mjtTrn.mjTRN_JOINT:
+                continue
+            gain, kp_bias, kd = src.actuator_gainprm[i][0], -src.actuator_biasprm[i][1], \
+                src.actuator_biasprm[i][2]
+            if abs(gain - kp_bias) < 1e-6 and kd <= 0.0:
+                continue
+            # Keyed by the TARGET JOINT, not the actuator name: attaching prefixes actuator names
+            # (they come out as g1_left_knee_joint) while attach_keeping_names strips the prefix
+            # back off the joints, so only the target is stable across the two. check_parity
+            # resolves actuators the same way, and for the same reason.
+            jname = mujoco.mj_id2name(src, mujoco.mjtObj.mjOBJ_JOINT,
+                                      int(src.actuator_trnid[i, 0]))
+            broken[jname] = float(kp_bias if kp_bias > 0 else gain)
+        for act in spec.actuators:
+            kp = broken.get(act.target)
+            if kp is None or kp <= 0:
+                continue
+            act.gaintype = mujoco.mjtGain.mjGAIN_FIXED
+            act.biastype = mujoco.mjtBias.mjBIAS_AFFINE
+            act.gainprm = [kp] + [0.0] * 9
+            act.biasprm = [0.0, -kp, -0.081 * kp] + [0.0] * 7
+            jr = spec.joint(act.target).range
+            act.ctrlrange = list(jr) if (jr[0] or jr[1]) else [-6.28, 6.28]
+        n_fixed = sum(1 for act in spec.actuators if broken.get(act.target, 0) > 0)
+        if n_fixed:
+            print(f"  repaired {n_fixed} actuator(s) that were not consistent position servos")
 
     # Cap gripper actuator force, see L.ROBOTS[*]["grip_force"]. Done on the spec so it is compiled
     # in; a post-compile write to actuator_forcerange is ignored like every other one.
     fmax = r.get("grip_force")
-    if fmax:
+    kp = r.get("grip_kp")
+    if fmax or kp:
         want = {L.prefixed(side, j) for side in L.SIDES for j in r["gripper_joints"]}
         n_capped = 0
         for act in spec.actuators:
             if act.target in want:
-                act.forcerange = [-fmax, fmax]
+                if fmax:
+                    act.forcerange = [-fmax, fmax]
+                if kp:
+                    # A position servo squeezes with kp * (commanded - actual). When the jaws stop
+                    # on the object that error is fixed by geometry, so kp alone sets the grip, and
+                    # forcerange only ever clips it. Both terms have to move together: gainprm[0]
+                    # is kp and biasprm[1] must be -kp or the servo is no longer a position servo.
+                    gain = list(act.gainprm)
+                    bias = list(act.biasprm)
+                    kv = -bias[2] if len(bias) > 2 else 0.0
+                    gain[0] = kp
+                    bias[1] = -kp
+                    if len(bias) > 2:
+                        bias[2] = -kv
+                    act.gainprm = gain
+                    act.biasprm = bias
                 n_capped += 1
         assert n_capped, f"no gripper actuator matched {sorted(want)}"
 
+    mu = r.get("pad_friction")
+    if mu:
+        # Accepts a scalar (sliding only) or a (sliding, torsional) pair. Torsional matters for a
+        # tall object gripped near its rim, which rotates out of the jaw instead of sliding down.
+        mu_slide, mu_tors = (mu, None) if np.isscalar(mu) else (mu[0], mu[1])
+        n_pads = 0
+        for g in spec.geoms:
+            if "finger_pad" in (g.name or ""):
+                fr = list(g.friction)
+                fr[0] = mu_slide
+                if mu_tors is not None:
+                    fr[1] = mu_tors
+                g.friction = fr
+                n_pads += 1
+        assert n_pads, "pad_friction is set but no finger_pad geom matched"
+
     add_task(spec)
+
+    # Object poses as ros2_control state interfaces. The cross-embodiment shadow renderer needs the
+    # can and tray where they ACTUALLY are, and the sim does not otherwise publish them. Naming is
+    # fixed by mujoco_ros2_control: a <sensor mujoco_type="pose"> named X reads MJCF sensors X_pos
+    # (framepos) and X_quat (framequat), so these names are a contract with gen_urdf, not a choice.
+    # Referenced off an explicit site, not the body. A framepos aimed at a body that was attached
+    # with a frame (the tray) reports double its world position, 0.68/-0.90/1.50 for a body actually
+    # at 0.34/-0.45/0.75. A site pins the frame unambiguously and both objects then read true.
+    for label, body_name in (("can_pose", "obj_root"), ("tray_pose", "plate_root")):
+        host = next((b for b in spec.bodies if b.name == body_name), None)
+        if host is None:
+            continue
+        host.add_site(name=f"{label}_site", pos=[0.0, 0.0, 0.0],
+                      quat=[1.0, 0.0, 0.0, 0.0], size=[0.005] * 3, group=4)
+        for suffix, stype in (("_pos", mujoco.mjtSensor.mjSENS_FRAMEPOS),
+                              ("_quat", mujoco.mjtSensor.mjSENS_FRAMEQUAT)):
+            sen = spec.add_sensor()
+            sen.name = label + suffix
+            sen.type = stype
+            sen.objtype = mujoco.mjtObj.mjOBJ_SITE
+            sen.objname = f"{label}_site"
+
 
     # Fingertip force/torque sensors: a site per finger body plus a matching force+torque pair.
     # MuJoCo's force/torque sensors report the wrench transmitted through the sensorised body's own
@@ -432,9 +647,20 @@ def build(key: str) -> mujoco.MjSpec:
     for side in L.SIDES:
         body = spec.body(f"{side}_{r['eef_body']}")
         body.add_site(name=f"{side}_eef", pos=list(r["eef_offset"]),
+                      quat=list(r.get("eef_quat", (1.0, 0.0, 0.0, 0.0))),
                       size=[0.008] * 3, group=4)
-        body.add_camera(name=f"{side}_wrist", pos=list(r["wrist_cam_pos"]),
-                        fovy=L.WRIST_CAM_FOVY, xyaxes=list(r["wrist_cam_xyaxes"]),
+        # fovy is per side, because the two wrist cameras answer different questions: the giving
+        # side has to see the object at the pick, the receiving side has to see it at the handover.
+        fovy = r.get("wrist_cam_fovy", L.WRIST_CAM_FOVY)
+        if isinstance(fovy, dict):
+            fovy = fovy.get(side, L.WRIST_CAM_FOVY)
+        # pos is per side for the same reason fovy is: the giving camera has to see the object at
+        # the grasp and the receiving one has to see it at the handover, and those pull opposite ways.
+        campos = r["wrist_cam_pos"]
+        if isinstance(campos, dict):
+            campos = campos[side]
+        body.add_camera(name=f"{side}_wrist", pos=list(campos),
+                        fovy=fovy, xyaxes=list(r["wrist_cam_xyaxes"]),
                         resolution=list(L.CAM_RES))
     for name, (eye, fovy) in L.SCENE_CAMS.items():
         spec.worldbody.add_camera(name=name, pos=list(eye), fovy=fovy,
@@ -459,14 +685,64 @@ def main() -> None:
     model = spec.compile()
     d = mujoco.MjData(model)
 
+    # Resolve actuators by transmission target, never by joint name. This used to be
+    # mj_name2id(mjOBJ_ACTUATOR, f"{side}_{jb}"), which finds an actuator only when it happens to
+    # share its joint's name. The reBot's do; the vx300s calls its gripper one `gripper`, so every
+    # lookup returned -1, the `if aid >= 0` swallowed it, and the model shipped a home keyframe
+    # whose ctrl was all zeros. The sim then drove every joint from the home qpos toward 0 the
+    # instant it loaded. check_parity.py resolves actuators the same way.
+    act_of_joint: dict[int, int] = {}
+    for i in range(model.nu):
+        if model.actuator_trntype[i] == mujoco.mjtTrn.mjTRN_JOINT:
+            act_of_joint[int(model.actuator_trnid[i, 0])] = i
+
+    # Only the arm joints and the COMMANDED gripper joints get written. Writing grip_range[1] to
+    # every gripper joint assumes they share a sign, which holds for the reBot's two slides and
+    # fails for a mirrored pair: the vx300s runs left_finger [0.021, 0.057] against right_finger
+    # [-0.057, -0.021], so writing +0.057 to both puts one finger outside its own range. It then
+    # snapped ~0.11 m on load, which is 3x the finger's whole travel.
+    # The follower is placed by SETTLING instead: hold every actuator at its commanded value and
+    # step, so MuJoCo's own <equality> works out where the coupled joint belongs. That is general
+    # over mirrored slides, same-signed slides and four-bar linkages alike.
+    # Start from the source model's own keyframe when the registry names one, so joints that are
+    # not part of the task still get a sensible pose. The G1's legs, waist and neck are not in
+    # arm_joints, and leaving them at zero means straight legs: with the pelvis welded that left
+    # the knee drifting 2.7 rad in 5 s. Applied BY JOINT NAME, not by qpos index, because the
+    # scene's ordering is not the source model's.
+    if r.get("base_keyframe"):
+        src = mujoco.MjModel.from_xml_path(str(r["mjcf"]))
+        kid = mujoco.mj_name2id(src, mujoco.mjtObj.mjOBJ_KEY, r["base_keyframe"])
+        assert kid >= 0, f"{r['mjcf'].name} has no keyframe {r['base_keyframe']!r}"
+        for j in range(src.njnt):
+            if src.jnt_type[j] == mujoco.mjtJoint.mjJNT_FREE:
+                continue
+            name = mujoco.mj_id2name(src, mujoco.mjtObj.mjOBJ_JOINT, j)
+            tgt = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, name)
+            if tgt >= 0:
+                d.qpos[model.jnt_qposadr[tgt]] = src.key_qpos[kid, src.jnt_qposadr[j]]
+
     joints = L.robot_all_joints(key)
+    commanded = set(r["arm_joints"]) | set(r["grip_ctrl_joints"])
     for side in L.SIDES:
-        pose = tuple(r["home"][side]) + (r["grip_range"][1],) * len(r["gripper_joints"])
-        for jb, q in zip(joints, pose):
+        pose = dict(zip(r["arm_joints"], r["home"][side]))
+        # `grip_open` gives a per-joint open pose, for hands whose joints do not share a range.
+        # A two-finger jaw is fully described by grip_range, but the G1's Dex3 has seven joints
+        # with seven different ranges, so one scalar cannot place them.
+        if r.get("grip_open"):
+            pose.update(dict(zip(r["grip_ctrl_joints"], r["grip_open"])))
+        else:
+            for j in r["grip_ctrl_joints"]:
+                pose[j] = r["grip_range"][1]                  # start with the jaw open
+        for jb, q in pose.items():
             jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{side}_{jb}")
             assert jid >= 0, f"missing joint {side}_{jb}"
             d.qpos[model.jnt_qposadr[jid]] = q
+            aid = act_of_joint.get(jid, -1)
+            if aid >= 0:
+                d.ctrl[aid] = q
     mujoco.mj_forward(model, d)
+    for _ in range(int(0.5 / model.opt.timestep)):
+        mujoco.mj_step(model, d)
 
     # Write a `home` keyframe. Without it mujoco_ros2_control starts the sim at qpos=0 and the arms
     # bolt upright; the generator was only applying the home pose for its own render. qpos here is the
@@ -476,29 +752,13 @@ def main() -> None:
     key_.qpos = d.qpos.copy().tolist()
     key_.ctrl = [0.0] * model.nu
 
-    # Resolve actuators by transmission target, never by joint name. This used to be
-    # mj_name2id(mjOBJ_ACTUATOR, f"{side}_{jb}"), which finds an actuator only when it happens to
-    # share its joint's name. The reBot's do; Panda's are `actuator1..7` / `gripper_actuator`, so
-    # every lookup returned -1, the `if aid >= 0` swallowed it, and Panda shipped a home keyframe
-    # whose ctrl was all zeros. The sim then drove every joint from the home qpos toward 0 the instant
-    # it loaded: four actuators pinned at their force limits, the fingers slammed through each other
-    # by 17 mm, and the arm could not track an EEF command to better than 40 mm. It reads as an IK or
-    # controller fault, though the IK was exact (0.0000 mm open-loop). check_parity.py resolves
-    # actuators the same way.
-    act_of_joint: dict[int, int] = {}
-    for i in range(model.nu):
-        if model.actuator_trntype[i] == mujoco.mjtTrn.mjTRN_JOINT:
-            act_of_joint[int(model.actuator_trnid[i, 0])] = i
-
+    # ctrl comes from the SETTLED qpos of each actuator's own joint, so the keyframe commands
+    # exactly the configuration it stores. A keyframe whose ctrl disagrees with its qpos is a
+    # spring-loaded model that lurches on load.
     n_set = 0
-    for side in L.SIDES:
-        pose = tuple(r["home"][side]) + (r["grip_range"][1],) * len(r["gripper_joints"])
-        for jb, q in zip(joints, pose):
-            jid = mujoco.mj_name2id(model, mujoco.mjtObj.mjOBJ_JOINT, f"{side}_{jb}")
-            aid = act_of_joint.get(jid, -1)
-            if aid >= 0:
-                key_.ctrl[aid] = q
-                n_set += 1
+    for jid, aid in act_of_joint.items():
+        key_.ctrl[aid] = float(d.qpos[model.jnt_qposadr[jid]])
+        n_set += 1
     # A keyframe whose ctrl does not command the qpos it stores is a spring-loaded model, so assert
     # every actuator got a value rather than trusting the loop.
     assert n_set == model.nu, (

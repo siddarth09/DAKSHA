@@ -19,9 +19,11 @@
     grip_force: 15.0
     left_eef_frame: left_gripper_end
     left_arm_joints: ["left_joint1", "left_joint2", "left_joint3", "left_joint4", "left_joint5", "left_joint6"]
+    left_grip_joints: [left_gripper_joint1, left_gripper_joint2]
     left_home: [0.111, 0.966, 0.322, 0.543, 0.239, -2.922]
     right_eef_frame: right_gripper_end
     right_arm_joints: ["right_joint1", "right_joint2", "right_joint3", "right_joint4", "right_joint5", "right_joint6"]
+    right_grip_joints: [right_gripper_joint1, right_gripper_joint2]
     right_home: [0.299, 1.331, 0.463, 0.664, 0.961, -2.716]
 
 # Servo gains, eef_control's own.

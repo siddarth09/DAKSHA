@@ -62,10 +62,12 @@ class EefControlNode(Node):
         self.declare_parameter("gain", 1.0)
         self.declare_parameter("dq_max", 0.05)
         self.declare_parameter("eef_offset", [0.0, 0.0, 0.0])
+        self.declare_parameter("eef_quat", [1.0, 0.0, 0.0, 0.0])
         self.declare_parameter("grip_range", [0.0, 0.04])
         self.declare_parameter("grip_ctrl_n", 1)
         for side in SIDES:
             self.declare_parameter(f"{side}_arm_joints", [""])
+            self.declare_parameter(f"{side}_grip_joints", [""])
             self.declare_parameter(f"{side}_eef_frame", "")
             self.declare_parameter(f"{side}_home", [0.0])
 
@@ -73,6 +75,7 @@ class EefControlNode(Node):
         urdf = str(Path(get_package_share_directory("zero_description"))
                    / "urdf" / f"zero_{key}.urdf")
         eef_offset = tuple(self.get_parameter("eef_offset").value)
+        eef_quat = tuple(self.get_parameter("eef_quat").value)
 
         self.ik: dict[str, ArmIK] = {}
         self.arm_pub: dict[str, object] = {}
@@ -93,7 +96,7 @@ class EefControlNode(Node):
                 raise SystemExit(
                     f"{side}_home has {len(self.home[side])} values, expected {len(jn)}")
             self.ik[side] = ArmIK(
-                urdf, frame, jn, eef_offset,
+                urdf, frame, jn, eef_offset, eef_quat,
                 damping=self.get_parameter("damping").value,
                 gain=self.get_parameter("gain").value,
                 dq_max=self.get_parameter("dq_max").value)
@@ -108,16 +111,16 @@ class EefControlNode(Node):
         self.q = np.zeros(self.ik["left"].model.nq)   # full-model config, kept in sync
         self.q_meas = np.zeros(self.ik["left"].model.nq)  # PURE measurement, for /zero/eef_state
         # qpos indices of the gripper joints, for reporting the measured aperture before any command has
-        # arrived (see _publish_state). Derived from the model, not hardcoded: the two robots name these
-        # differently (reBot gripper_joint1/2, Panda finger_joint1/2). A gripper joint is any joint under
-        # this side's prefix that is not one of its arm joints.
+        # arrived (see _publish_state). Named explicitly by the params rather than inferred as
+        # "anything under this side's prefix that is not an arm joint": that heuristic held only for
+        # a two-joint slide jaw. The Robotiq 2F-85 adds four passive four-bar joints, and averaging
+        # those into the aperture reports a number that is not an aperture at all.
         model = self.ik["left"].model
         self.grip_qidx: dict[str, list[int]] = {}
         for side in SIDES:
-            arm = set(self.arm_joints[side])
-            idx = [model.joints[jid].idx_q for jid in range(1, model.njoints)
-                   if model.names[jid].startswith(f"{side}_") and model.names[jid] not in arm]
-            self.grip_qidx[side] = idx
+            want = self.get_parameter(f"{side}_grip_joints").value or []
+            self.grip_qidx[side] = [model.joints[jid].idx_q for jid in range(1, model.njoints)
+                                    if model.names[jid] in set(want)]
         if not all(self.grip_qidx.values()):
             self.get_logger().warn(
                 "gripper joints not found in the model; /zero/eef_state will report the jaw as "
@@ -209,7 +212,15 @@ class EefControlNode(Node):
             if self.target is not None:
                 grips[s] = float(self.target[9 if s == "left" else 19])
             elif self.grip_qidx[s]:
-                span = max(self.grip_hi - self.grip_lo, 1e-9)
+                # Keep the SIGN of the span. grip_range is (value at closed, value at open) and
+                # those are not always ascending: the reBot's slide joints run 0 closed to 0.05
+                # open, the Robotiq 2F-85's knuckle runs 0.8 closed to 0.0 open. A max(span, 1e-9)
+                # guard written for the ascending case collapses a descending span to 1e-9 and
+                # pins this channel at 0.0, i.e. permanently "fully closed", which is the exact
+                # out-of-distribution first observation this block exists to avoid.
+                span = self.grip_hi - self.grip_lo
+                if abs(span) < 1e-9:
+                    span = 1e-9
                 grips[s] = float(np.clip(
                     (np.mean(self.q_meas[self.grip_qidx[s]]) - self.grip_lo) / span, 0.0, 1.0))
             else:

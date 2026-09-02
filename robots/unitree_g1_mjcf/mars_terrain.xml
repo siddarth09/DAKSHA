@@ -1,0 +1,86 @@
+<?xml version="1.0" encoding="utf-8"?>
+<mujoco model="mars_deploy_scene">
+  <!--
+    HANUMAN — Mars Deployment Scene
+    Generated terrain: 10x5 patches, 8.0m each
+    Total arena: 80.0m x 40.0m
+    Heightfield resolution: 0.05m
+    Elevation range: -0.149m to 0.660m
+  -->
+
+  <compiler angle="radian" autolimits="true"/>
+
+  <option gravity="0 0 -3.72" timestep="0.005">
+    <flag warmstart="enable"/>
+  </option>
+
+  <statistic center="40.0 20.0 1.0"
+             extent="80.0"/>
+
+  <visual>
+    <headlight diffuse="0.8 0.6 0.4" ambient="0.3 0.2 0.15" specular="0.1 0.1 0.1"/>
+    <rgba fog="0.8 0.6 0.4 1.0"/>
+    <map znear="0.01" zfar="500"/>
+    <quality shadowsize="4096"/>
+  </visual>
+
+  <asset>
+    <!-- Mars terrain heightfield -->
+    <hfield name="mars_terrain"
+            file="mars_heightfield.png"
+            size="40.00 20.00 0.8085 0.01"/>
+
+    <!-- Mars surface material -->
+    <texture name="mars_surface_tex" type="2d" builtin="flat"
+             rgb1="0.72 0.45 0.2" rgb2="0.6 0.35 0.15"
+             width="512" height="512"/>
+    <material name="mars_surface_mat" texture="mars_surface_tex"
+              texrepeat="20 20" specular="0.05" roughness="0.95"
+              rgba="0.72 0.45 0.2 1.0"/>
+
+    <!-- Sky texture (Mars atmosphere) -->
+    <texture name="mars_sky" type="skybox" builtin="gradient"
+             rgb1="0.85 0.55 0.3" rgb2="0.4 0.2 0.1"
+             width="512" height="512"/>
+
+    
+  </asset>
+
+  <worldbody>
+    <!-- Mars sky -->
+    <light name="sun" pos="30 30 50" dir="-0.3 -0.3 -1"
+           diffuse="1.2 0.9 0.6" specular="0.3 0.2 0.1"
+           castshadow="true"/>
+    <light name="ambient_fill" pos="0 0 30" dir="0 0 -1"
+           diffuse="0.3 0.2 0.15" specular="0 0 0"
+           castshadow="false"/>
+
+    <!-- Mars terrain -->
+    <geom name="mars_terrain" type="hfield" hfield="mars_terrain"
+          pos="40.00 20.00 0"
+          material="mars_surface_mat"
+          contype="1" conaffinity="1"
+          friction="1.0 0.005 0.001"/>
+
+    <!-- Border walls (invisible, prevent robot from falling off) -->
+    <geom name="wall_north" type="box" size="40.0 0.5 2.0"
+          pos="40.0 40.5 1.0"
+          rgba="0 0 0 0" contype="1" conaffinity="1"/>
+    <geom name="wall_south" type="box" size="40.0 0.5 2.0"
+          pos="40.0 -0.5 1.0"
+          rgba="0 0 0 0" contype="1" conaffinity="1"/>
+    <geom name="wall_east" type="box" size="0.5 20.0 2.0"
+          pos="80.5 20.0 1.0"
+          rgba="0 0 0 0" contype="1" conaffinity="1"/>
+    <geom name="wall_west" type="box" size="0.5 20.0 2.0"
+          pos="-0.5 20.0 1.0"
+          rgba="0 0 0 0" contype="1" conaffinity="1"/>
+
+    <!-- Spawn marker (visual only) -->
+    <site name="spawn_point" pos="40.0 20.0 1.16"
+          size="0.1" rgba="0 1 0 0.5"/>
+  </worldbody>
+
+  <!-- Include robot model here -->
+  <include file="g1_mars.xml"/>
+</mujoco>
